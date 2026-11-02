@@ -1,10 +1,11 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from starlette.testclient import TestClient
 
 
-class SampleModel(BaseModel):
+class MockPayload(BaseModel):
     name: str = Field(..., min_length=3)
-    age: int = Field(..., ge=0)
+    score: int = Field(..., ge=0)
 
 
 def test_404_not_found(client):
@@ -26,17 +27,16 @@ def test_405_method_not_allowed(client):
 
 
 def test_validation_error_envelope(app, client):
-    # Dynamically mount a test route with validation to test 422 envelope
     test_router = APIRouter()
 
     @test_router.post("/test-validation")
-    def sample_endpoint(payload: SampleModel):
+    def sample_endpoint(payload: MockPayload):
         return {"status": "ok"}
 
     app.include_router(test_router)
 
-    # Send invalid payload (missing name, negative age)
-    response = client.post("/test-validation", json={"name": "a", "age": -5})
+    # Invalid payload (score is negative, name too short)
+    response = client.post("/test-validation", json={"name": "a", "score": -10})
     assert response.status_code == 422
     data = response.json()
     assert "error" in data
@@ -53,12 +53,11 @@ def test_500_internal_server_error_sanitization(app):
 
     app.include_router(test_router)
 
-    from starlette.testclient import TestClient
     safe_client = TestClient(app, raise_server_exceptions=False)
     response = safe_client.get("/test-crash")
     assert response.status_code == 500
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "INTERNAL_SERVER_ERROR"
-    # Ensure raw secret is not leaked in response
+    # Ensure raw secret string is never leaked
     assert "hidden_secret_123" not in data["error"]["message"]

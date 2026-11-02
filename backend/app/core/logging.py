@@ -42,7 +42,9 @@ def setup_logging():
 
     # Silence verbose third-party loggers
     logging.getLogger("uvicorn.access").setLevel(level)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING if not settings.DB_ECHO else logging.INFO)
+    logging.getLogger("sqlalchemy.engine").setLevel(
+        logging.WARNING if not settings.DB_ECHO else logging.INFO
+    )
 
     return logging.getLogger("optiguide")
 

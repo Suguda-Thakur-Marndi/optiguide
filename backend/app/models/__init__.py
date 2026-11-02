@@ -1,7 +1,9 @@
-from backend.app.database.base import Base
-from backend.app.models.eyewear import EyewearItem
-from backend.app.models.report import Report
-from backend.app.models.screening import Screening
-from backend.app.models.user import User
+"""SQLAlchemy declarative models for OptiGuide.
 
-__all__ = ["Base", "EyewearItem", "Report", "Screening", "User"]
+Phase 1 establishes the metadata base. Concrete business entities (users,
+screenings, prescriptions, reports) will be migrated in subsequent phases.
+"""
+
+from backend.app.database.base import Base
+
+__all__ = ["Base"]

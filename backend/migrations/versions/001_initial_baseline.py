@@ -1,13 +1,14 @@
 """Initial baseline migration
 
 Revision ID: 001_initial_baseline
-Revises: 
+Revises:
 Create Date: 2026-11-02 01:00:00.000000
 
 """
+
 from collections.abc import Sequence
 
-revision: str = '001_initial_baseline'
+revision: str = "001_initial_baseline"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

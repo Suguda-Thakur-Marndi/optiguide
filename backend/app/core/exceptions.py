@@ -1,4 +1,5 @@
 """Core custom application exceptions."""
+
 from typing import Any
 
 

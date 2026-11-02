@@ -9,11 +9,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Formats 422 validation errors into standard error envelope."""
     details = []
     for err in exc.errors():
-        details.append({
-            "loc": err.get("loc"),
-            "msg": err.get("msg"),
-            "type": err.get("type"),
-        })
+        details.append(
+            {
+                "loc": err.get("loc"),
+                "msg": err.get("msg"),
+                "type": err.get("type"),
+            }
+        )
 
     payload = {
         "error": {

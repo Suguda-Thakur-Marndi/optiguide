@@ -9,7 +9,7 @@ from backend.app.middleware.error_handler import (
     validation_exception_handler,
 )
 from backend.app.middleware.logging_middleware import RequestTimingMiddleware
-from backend.app.schemas.health import HealthResponse
+from backend.app.schemas.health import AppInfoResponse, HealthResponse
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 def create_application() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
-        version="1.0.0",
+        version=settings.APP_VERSION,
         description="OptiGuide Vision Screening and Eyewear Guidance API",
         docs_url="/docs" if settings.APP_DEBUG else None,
         redoc_url="/redoc" if settings.APP_DEBUG else None,
@@ -42,13 +42,23 @@ def create_application() -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
 
+    # Root Identification Endpoint
+    @app.get("/", response_model=AppInfoResponse, tags=["General"])
+    async def root_info() -> AppInfoResponse:
+        return AppInfoResponse(
+            name=f"{settings.APP_NAME} API",
+            version=settings.APP_VERSION,
+            status="running",
+            environment=settings.APP_ENV,
+        )
+
     # Root Level Health (Liveness)
     @app.get("/health", response_model=HealthResponse, tags=["Health"])
-    async def root_health():
+    async def root_health() -> HealthResponse:
         return HealthResponse(
             status="ok",
-            service=settings.APP_NAME.lower() + "-api",
-            version="1.0.0",
+            service=f"{settings.APP_NAME.lower()}-api",
+            version=settings.APP_VERSION,
             environment=settings.APP_ENV,
             timestamp=datetime.now(UTC).isoformat(),
         )

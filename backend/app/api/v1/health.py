@@ -22,7 +22,7 @@ async def get_system_health(response: Response) -> HealthResponse:
         return HealthResponse(
             status="ok",
             service=f"{settings.APP_NAME.lower()}-api",
-            version="1.0.0",
+            version=settings.APP_VERSION,
             environment=settings.APP_ENV,
             timestamp=now_utc,
             database="connected",
@@ -32,7 +32,7 @@ async def get_system_health(response: Response) -> HealthResponse:
         return HealthResponse(
             status="degraded",
             service=f"{settings.APP_NAME.lower()}-api",
-            version="1.0.0",
+            version=settings.APP_VERSION,
             environment=settings.APP_ENV,
             timestamp=now_utc,
             database="disconnected",
@@ -40,10 +40,16 @@ async def get_system_health(response: Response) -> HealthResponse:
 
 
 @router.get(
+    "/health/database",
+    response_model=DatabaseHealthResponse,
+    summary="Database Connectivity Health Check",
+    description="Performs live connection check against the configured database.",
+)
+@router.get(
     "/health/db",
     response_model=DatabaseHealthResponse,
-    summary="Database Diagnostic Ping",
-    description="Executes a live ping against the configured database engine.",
+    include_in_schema=False,
+    summary="Database Connectivity Diagnostic Alias",
 )
 async def get_db_health(response: Response) -> DatabaseHealthResponse:
     is_connected, latency_ms, db_type, error_msg = check_db_connectivity()
