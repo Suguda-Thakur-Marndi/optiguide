@@ -456,8 +456,8 @@ export const ShopDashboardPage: React.FC<ShopDashboardPageProps> = ({
                         {new Date(s.completedAt || s.startedAt).toLocaleDateString()}
                       </td>
                       <td style={{ padding: '14px' }}>
-                        {s.results.distanceVision?.rightEye.snellenFraction || '20/20'} /{' '}
-                        {s.results.distanceVision?.leftEye.snellenFraction || '20/20'}
+                        {s.results?.distanceVision?.rightEye.snellenFraction || '20/20'} /{' '}
+                        {s.results?.distanceVision?.leftEye.snellenFraction || '20/20'}
                       </td>
                       <td style={{ padding: '14px' }}>
                         {s.recommendations?.professionalReferralRequired ? (

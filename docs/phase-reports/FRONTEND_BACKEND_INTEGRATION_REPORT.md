@@ -11,12 +11,12 @@
 This phase accomplished the complete end-to-end integration between the existing OptiGuide frontend applications (`apps/mobile` and `apps/web`) and the FastAPI backend service (`backend/`). 
 
 Rather than rebuilding or replacing the teammate's frontend implementation, the integration established robust, type-safe, and secure communication channels between the frontend clients and the backend. Key achievements include:
-- Identification and preservation of both frontend application stacks (React Native/Expo for mobile and React/Vite for web).
+- Identification and preservation of both frontend application stacks (React Native/Expo for mobile and React 18/Vite for web).
 - Full implementation and expansion of centralized API clients supporting JWT access tokens, refresh token rotation, automatic 401 retry queues, and screening session lifecycles.
-- Re-connection of mobile and web screens to live backend endpoints for authentication, profile management, session auditing, and screening consent.
+- Seamless connection of mobile and web screens to live backend endpoints for authentication, profile management, session auditing, and screening consent.
 - Verification and removal of hardcoded mock records across all production application code.
 - Dynamic, security-hardened CORS configuration for local web development.
-- Execution and passing of all automated test suites: **112 backend tests**, **16 mobile tests**, and **4 web tests**.
+- Execution and passing of all automated test suites: **112 backend tests**, **16 mobile tests**, and **9 web tests**.
 - Execution and verification of **13 live manual end-to-end user journeys** against the running FastAPI server.
 
 ---
@@ -38,11 +38,13 @@ optiguide/
 │   │   └── __tests__/             # Jest test suites
 │   └── web/                       # React 18 + Vite Web Client
 │       ├── src/
-│       │   ├── components/        # Web UI widgets & screening panels
-│       │   ├── services/          # Centralized web apiClient.ts
+│       │   ├── components/        # Web UI widgets, layout, icons, AuthModal
+│       │   ├── localization/      # Multilingual translations (EN, HI, OR)
+│       │   ├── pages/             # Landing, ScreeningFlow, Results, Eyewear, Shop, Admin, Legal
+│       │   ├── services/          # Centralized web apiClient.ts, storage.ts, tts.ts
 │       │   ├── App.tsx            # Main OptiGuide Web Application
 │       │   └── main.tsx           # React DOM root entry
-│       └── tests/                 # Node.js built-in test suite
+│       └── tests/                 # Node.js native test runner suite
 ├── backend/                       # FastAPI Service
 │   ├── app/
 │   │   ├── api/v1/                # Endpoint routers (auth, users, screening, health)
@@ -73,9 +75,10 @@ The repository inspection revealed two distinct frontend applications designed f
    - **Test Runner:** Jest `^29.2.1` with `ts-jest` and `jest-expo`.
 
 2. **`apps/web` (Web Client):**
-   - **Framework:** React `^18.3.1` with Vite `^5.4.10`
+   - **Framework:** React `^18.3.1` with Vite `^5.4.10` / `5.4.21`
    - **Language:** TypeScript `^5.3.3` / React JSX
-   - **Tooling:** Vite development server and production bundler, CSS-in-JS inline styling compliant with clean UI standards.
+   - **Pages & Components:** `LandingPage`, `ScreeningFlowPage`, `ResultsPage`, `EyewearPage`, `ShopDashboardPage`, `AdminDashboardPage`, `LegalPages`, `Navbar`, `Footer`, `ClinicalDisclaimerBanner`, `AuthModal`, `InteractiveDemo`.
+   - **Localization:** English, Hindi (हिन्दी), and Odia (ଓଡ଼ିଆ).
    - **Test Runner:** Node.js native test runner (`node --test`).
 
 ---
@@ -87,8 +90,8 @@ The repository inspection revealed two distinct frontend applications designed f
 - **ORM & Data Layer:** SQLAlchemy `2.0.38` with Alembic `1.15.1` migrations
 - **Databases:** SQLite (`local_dev.db`) for isolated local development and PostgreSQL for production staging
 - **Security & Authentication:**
-  - Argon2id password hashing via `pwd_context`
-  - Asymmetric/symmetric signed JWT Bearer access tokens (15-minute expiration)
+  - Argon2id password hashing via Passlib
+  - Signed JWT Bearer access tokens (15-minute expiration)
   - Cryptographically random refresh tokens (stored as SHA-256 hashes in database)
   - Automatic refresh token rotation on consumption
   - Single active screening session enforcement per patient
@@ -203,14 +206,15 @@ A repository-wide audit was conducted across `apps/mobile/` and `apps/web/`.
 ## L. Files Created
 
 1. `apps/web/src/services/apiClient.ts` — Type-safe centralized API client for web with 401 retry queue.
-2. `apps/web/vite.config.ts` — Vite server and build configuration.
-3. `backend/tests/e2e_verification_runner.py` — Live automated manual verification runner for all 13 journeys.
-4. `docs/integration/FRONTEND_BACKEND_AUDIT.md` — Stage 1 architecture audit report.
-5. `docs/integration/API_INTEGRATION_MATRIX.md` — Stage 2 screen-to-endpoint matrix.
-6. `docs/integration/MOCK_DATA_REMOVAL_REPORT.md` — Stage 7 mock data removal audit.
-7. `docs/integration/ENVIRONMENT_CONFIGURATION.md` — Stage 8 CORS and environment guide.
-8. `docs/integration/E2E_VERIFICATION_REPORT.md` — Stage 14 manual E2E verification results.
-9. `docs/phase-reports/FRONTEND_BACKEND_INTEGRATION_REPORT.md` — This master integration report.
+2. `apps/web/src/components/layout/AuthModal.tsx` — Web authentication modal and session audit panel.
+3. `apps/web/vite.config.ts` — Vite server and build configuration.
+4. `backend/tests/e2e_verification_runner.py` — Live automated manual verification runner for all 13 journeys.
+5. `docs/integration/FRONTEND_BACKEND_AUDIT.md` — Stage 1 architecture audit report.
+6. `docs/integration/API_INTEGRATION_MATRIX.md` — Stage 2 screen-to-endpoint matrix.
+7. `docs/integration/MOCK_DATA_REMOVAL_REPORT.md` — Stage 7 mock data removal audit.
+8. `docs/integration/ENVIRONMENT_CONFIGURATION.md` — Stage 8 CORS and environment guide.
+9. `docs/integration/E2E_VERIFICATION_REPORT.md` — Stage 14 manual E2E verification results.
+10. `docs/phase-reports/FRONTEND_BACKEND_INTEGRATION_REPORT.md` — This master integration report.
 
 ---
 
@@ -223,13 +227,17 @@ A repository-wide audit was conducted across `apps/mobile/` and `apps/web/`.
 5. `apps/mobile/app/screening/index.tsx` — Wired live screening session initialization and completion.
 6. `apps/mobile/src/screens/HomeScreen.tsx` — Added navigation actions to login and profile screens.
 7. `apps/mobile/__tests__/apiClient.test.ts` — Added tests for auth, token rotation, and screening methods.
-8. `apps/web/src/App.tsx` — Replaced developer diagnostic page with the full OptiGuide Web Main Application.
-9. `apps/web/tests/web.test.js` — Updated web tests to validate live UI, clinical notices, and API client.
-10. `backend/app/main.py` — Configured CORS `allow_origin_regex` for web dev servers.
-11. `backend/app/core/config.py` — Added absolute path normalization for SQLite databases.
-12. `backend/tests/api/test_root_api.py` — Updated root CORS expectations.
-13. `.env.example`, `backend/.env.example` — Added frontend and backend environment documentation.
-14. `package.json` — Added root integration scripts.
+8. `apps/web/src/App.tsx` — Integrated AuthModal, session synchronization, and role navigation.
+9. `apps/web/src/components/layout/Navbar.tsx` — Added Auth modal trigger and user profile indication.
+10. `apps/web/src/pages/ScreeningFlowPage.tsx` — Connected backend screening consent and session completion.
+11. `apps/web/src/pages/AdminDashboardPage.tsx` — Resolved unused imports.
+12. `apps/web/src/pages/EyewearPage.tsx`, `ResultsPage.tsx`, `ShopDashboardPage.tsx` — Handled optional results types.
+13. `apps/web/tests/web.test.js` — Added tests for API client, AuthModal, and screening integration.
+14. `backend/app/main.py` — Configured CORS `allow_origin_regex` for web dev servers.
+15. `backend/app/core/config.py` — Added absolute path normalization for SQLite databases.
+16. `backend/tests/api/test_root_api.py` — Updated root CORS expectations.
+17. `.env.example`, `backend/.env.example` — Added frontend and backend environment documentation.
+18. `package.json` — Added root integration scripts and deduplicated entries.
 
 ---
 
@@ -258,11 +266,11 @@ Backend test suite executed via `pytest`:
 1. **Mobile Test Suite (Jest):**
    - **Command:** `npm --workspace=apps/mobile test`
    - **Results:** **3 test suites passed, 16 tests passed, 0 failed**
-   - **Suites:** `apiClient.test.ts`, `auth.test.ts`, `HomeScreen.test.tsx`
+   - **Suites:** `apiClient.test.ts`, `components.test.tsx`, `tokens.test.ts`
 2. **Web Test Suite (Node.js Test Runner):**
    - **Command:** `npm --workspace=apps/web test`
-   - **Results:** **4 tests passed, 0 failed**
-   - **Suites:** Component rendering, clinical notice verification, environment configuration, API client methods.
+   - **Results:** **9 tests passed, 0 failed**
+   - **Suites:** Component rendering, multilingual dictionaries, clinical notices, frame catalogue, shop kiosk customers, interactive demo calibration, API client contracts, AuthModal integration, ScreeningFlowPage integration.
 
 ---
 
@@ -273,7 +281,7 @@ Backend test suite executed via `pytest`:
    - **Output:** Clean — 0 errors found.
 2. **Web Production Build:**
    - **Command:** `npm --workspace=apps/web run build`
-   - **Output:** `vite v5.4.10 building for production... dist/index.html 0.46 kB, dist/assets/index.js 143.12 kB. built in 422ms.` — Clean.
+   - **Output:** `vite v5.4.21 building for production... dist/index.html 2.46 kB, dist/assets/index-DOmok-Qb.js 315.98 kB. built in 519ms.` — Clean.
 3. **Backend Linting & Formatting:**
    - **Command:** `ruff check backend && ruff format --check backend`
    - **Output:** Clean — All checks passed.
@@ -347,9 +355,9 @@ Executed live using `backend/tests/e2e_verification_runner.py` against `http://l
 | CORS Configuration | **VERIFIED** | Regex allows localhost/127.0.0.1 across all development ports. |
 | Backend Pytest Suite | **VERIFIED** | 112 / 112 passed. |
 | Mobile Jest Suite | **VERIFIED** | 16 / 16 passed. |
-| Web Test Suite | **VERIFIED** | 4 / 4 passed. |
+| Web Test Suite | **VERIFIED** | 9 / 9 passed. |
 | Mobile & Web TypeScript Checks | **VERIFIED** | 0 errors. |
-| Web Production Build | **VERIFIED** | Clean build in 422ms. |
+| Web Production Build | **VERIFIED** | Clean build in 519ms. |
 | Manual E2E User Journeys | **VERIFIED** | 13 / 13 passed against live backend. |
 | Acuity Screening Interactive Tests | **DEFERRED** | Scheduled for Phase 3.2. |
 

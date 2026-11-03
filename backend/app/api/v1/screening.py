@@ -7,6 +7,15 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_active_user, get_db
 from app.models.user import User
 from app.schemas.auth import MessageResponse
+from app.schemas.clinical_assessments import (
+    AstigmatismCreateRequest,
+    AstigmatismResponse,
+    ClinicalSessionSummaryResponse,
+    ColorVisionCreateRequest,
+    ColorVisionResponse,
+    VisualAcuityCreateRequest,
+    VisualAcuityResponse,
+)
 from app.schemas.screening import (
     ConsentAcceptRequest,
     ConsentResponse,
@@ -22,7 +31,7 @@ router = APIRouter()
 
 
 # -----------------------------------------------------------------------------
-# Consent Management Endpoints
+# Consent Management Endpoints (with /consent alias)
 # -----------------------------------------------------------------------------
 
 
@@ -34,6 +43,21 @@ router = APIRouter()
     description="Returns the server-controlled screening consent document and the authenticated user's acceptance status.",
 )
 async def get_current_consent(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ConsentStatusResponse:
+    return ScreeningService.get_current_consent_status(db=db, user=current_user)
+
+
+@router.get(
+    "/consent",
+    response_model=ConsentStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Current Consent (Alias)",
+    description="Canonical alias for /screening/consent/current to support unified web and mobile clients.",
+    include_in_schema=False,
+)
+async def get_consent_alias(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> ConsentStatusResponse:
@@ -82,11 +106,11 @@ async def withdraw_consent(
     description="Creates a new preliminary vision screening session in IN_PROGRESS status. Requires active consent.",
 )
 async def create_screening_session(
-    _payload: ScreeningSessionCreateRequest,
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[Session, Depends(get_db)],
+    payload: ScreeningSessionCreateRequest | None = None,
 ) -> ScreeningSessionResponse:
-    return ScreeningService.create_session(db=db, user=current_user)
+    return ScreeningService.create_session(db=db, user=current_user, payload=payload)
 
 
 @router.get(
@@ -160,4 +184,148 @@ async def cancel_screening_session(
         user=current_user,
         session_id=session_id,
         payload=payload,
+    )
+
+
+# -----------------------------------------------------------------------------
+# Clinical Assessment Endpoints (Visual Acuity, Astigmatism, Color Vision)
+# -----------------------------------------------------------------------------
+
+
+@router.post(
+    "/sessions/{session_id}/acuity",
+    response_model=VisualAcuityResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record Visual Acuity Assessment",
+    description="Records distance or near visual acuity screening findings for an active session.",
+)
+async def record_acuity_assessment(
+    session_id: uuid.UUID,
+    payload: VisualAcuityCreateRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> VisualAcuityResponse:
+    return ScreeningService.record_visual_acuity(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+        payload=payload,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/acuity",
+    response_model=list[VisualAcuityResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Visual Acuity Assessments",
+    description="Retrieves all visual acuity results associated with the session.",
+)
+async def get_acuity_assessments(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[VisualAcuityResponse]:
+    return ScreeningService.get_visual_acuity_for_session(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/astigmatism",
+    response_model=AstigmatismResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record Astigmatism Dial Assessment",
+    description="Records radial clock dial / fan screening findings for meridian clarity variance.",
+)
+async def record_astigmatism_assessment(
+    session_id: uuid.UUID,
+    payload: AstigmatismCreateRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> AstigmatismResponse:
+    return ScreeningService.record_astigmatism(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+        payload=payload,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/astigmatism",
+    response_model=list[AstigmatismResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Astigmatism Assessments",
+    description="Retrieves astigmatism screening records for the session.",
+)
+async def get_astigmatism_assessments(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[AstigmatismResponse]:
+    return ScreeningService.get_astigmatism_for_session(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/color-vision",
+    response_model=ColorVisionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record Color Vision Assessment",
+    description="Records pseudoisochromatic plate discrimination findings for color vision screening.",
+)
+async def record_color_vision_assessment(
+    session_id: uuid.UUID,
+    payload: ColorVisionCreateRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ColorVisionResponse:
+    return ScreeningService.record_color_vision(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+        payload=payload,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/color-vision",
+    response_model=list[ColorVisionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Color Vision Assessments",
+    description="Retrieves color vision plate screening records for the session.",
+)
+async def get_color_vision_assessments(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[ColorVisionResponse]:
+    return ScreeningService.get_color_vision_for_session(
+        db=db,
+        user=current_user,
+        session_id=session_id,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/summary",
+    response_model=ClinicalSessionSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Comprehensive Session Clinical Summary",
+    description="Compiles an aggregated summary of all acuity, astigmatism, and color vision assessments with referral triage.",
+)
+async def get_session_summary(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ClinicalSessionSummaryResponse:
+    return ScreeningService.get_session_summary(
+        db=db,
+        user=current_user,
+        session_id=session_id,
     )

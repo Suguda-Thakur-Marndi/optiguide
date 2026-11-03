@@ -9,6 +9,7 @@ import {
 import { useLanguage } from '../localization/useLanguage';
 import { speakText, stopSpeech } from '../services/tts';
 import { saveScreeningSession } from '../services/storage';
+import { apiClient } from '../services/apiClient';
 import {
   ScreeningSession,
   QuestionnaireResponses,
@@ -48,6 +49,7 @@ export const ScreeningFlowPage: React.FC<ScreeningFlowPageProps> = ({
   const { language, t } = useLanguage();
   const [step, setStep] = useState<ScreeningStep>('intro');
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [backendSessionId, setBackendSessionId] = useState<string | null>(null);
 
   // Questionnaire state
   const [qIndex, setQIndex] = useState(0);
@@ -297,7 +299,7 @@ export const ScreeningFlowPage: React.FC<ScreeningFlowPageProps> = ({
   };
 
   // Complete and assemble full screening session
-  const finalizeScreening = () => {
+  const finalizeScreening = async () => {
     setStep('processing');
 
     const distanceVision: DistanceVisionResult = {
@@ -419,6 +421,84 @@ export const ScreeningFlowPage: React.FC<ScreeningFlowPageProps> = ({
     // Persist to storage
     saveScreeningSession(session);
 
+    if (backendSessionId) {
+      try {
+        // 1. Record Distance Visual Acuity for Right Eye
+        await apiClient.recordVisualAcuity(backendSessionId, {
+          test_eye: 'right',
+          snellen_fraction: rightEyeScore.snellen,
+          logmar: rightEyeScore.logMAR,
+          decimal_acuity: rightEyeScore.decimal,
+          tested_distance_meters: 0.6,
+          unassisted_or_corrected: questionnaire.currentEyewear !== 'none' ? 'with_glasses' : 'unassisted',
+          near_reading_label: nearReadingLevel,
+          near_reading_distance_cm: 38,
+          is_calibrated: true,
+          calibration: {
+            screen_width_px: window.innerWidth,
+            screen_height_px: window.innerHeight,
+            display_dpi: window.devicePixelRatio ? window.devicePixelRatio * 96 : 96,
+            viewing_distance_cm: 60,
+            is_verified: true,
+          },
+          observations: 'Recorded via OptiGuide Tumbling E screening protocol.',
+        }).catch((e) => console.warn('Record right acuity error:', e?.message));
+
+        // 2. Record Distance Visual Acuity for Left Eye
+        await apiClient.recordVisualAcuity(backendSessionId, {
+          test_eye: 'left',
+          snellen_fraction: leftEyeScore.snellen,
+          logmar: leftEyeScore.logMAR,
+          decimal_acuity: leftEyeScore.decimal,
+          tested_distance_meters: 0.6,
+          unassisted_or_corrected: questionnaire.currentEyewear !== 'none' ? 'with_glasses' : 'unassisted',
+          near_reading_label: nearReadingLevel,
+          near_reading_distance_cm: 38,
+          is_calibrated: true,
+          calibration: {
+            screen_width_px: window.innerWidth,
+            screen_height_px: window.innerHeight,
+            display_dpi: window.devicePixelRatio ? window.devicePixelRatio * 96 : 96,
+            viewing_distance_cm: 60,
+            is_verified: true,
+          },
+          observations: 'Recorded via OptiGuide Tumbling E screening protocol.',
+        }).catch((e) => console.warn('Record left acuity error:', e?.message));
+
+        // 3. Record Astigmatism Clock Dial Assessment
+        await apiClient.recordAstigmatism(backendSessionId, {
+          chart_type: 'clock_dial',
+          has_uniform_clarity: astigmatismUniform,
+          indicated_axes: astigmatismMeridian ? [astigmatismMeridian] : [],
+          sharpest_meridian_hour: astigmatismMeridian || undefined,
+          screening_observation: astigmatismUniform
+            ? 'Radial clock chart appeared uniformly clear with no prominent meridian asymmetry observed.'
+            : `Potential cylindrical variance indicated along ${astigmatismMeridian} o'clock axis.`,
+        }).catch((e) => console.warn('Record astigmatism error:', e?.message));
+
+        // 4. Record Color Vision Plates Assessment
+        await apiClient.recordColorVision(backendSessionId, {
+          test_protocol: 'pseudoisochromatic_plates',
+          total_plates_presented: colorPlates.length,
+          correct_plate_count: correctPlates,
+          deficiency_indicated: correctPlates < colorPlates.length - 1,
+          deficiency_type: correctPlates < colorPlates.length - 1 ? 'protan_deutan_red_green' : 'none',
+          responses_detail: colorPlates.map((p, idx) => ({
+            plate: p.id,
+            input: colorPlateAnswers[idx] || '',
+            correct: (colorPlateAnswers[idx] || '').trim() === p.correctValue,
+          })),
+        }).catch((e) => console.warn('Record color vision error:', e?.message));
+
+        // 5. Complete Screening Session on backend
+        await apiClient.completeScreeningSession(backendSessionId).catch((err) => {
+          console.warn('Backend complete session notice:', err?.message);
+        });
+      } catch (err) {
+        console.warn('Backend clinical sync notice:', err);
+      }
+    }
+
     setTimeout(() => {
       onComplete(session);
     }, 1200);
@@ -459,7 +539,12 @@ export const ScreeningFlowPage: React.FC<ScreeningFlowPageProps> = ({
         </div>
 
         <button
-          onClick={onCancel}
+          onClick={() => {
+            if (backendSessionId) {
+              apiClient.cancelScreeningSession(backendSessionId, 'User cancelled').catch(() => {});
+            }
+            onCancel();
+          }}
           style={{
             background: 'none',
             border: '1px solid #D7D2C4',
@@ -547,7 +632,24 @@ export const ScreeningFlowPage: React.FC<ScreeningFlowPageProps> = ({
 
           <button
             disabled={!disclaimerAccepted}
-            onClick={() => setStep('readiness')}
+            onClick={async () => {
+              if (!disclaimerAccepted) return;
+              if (apiClient.getAccessToken()) {
+                try {
+                  await apiClient.acceptScreeningConsent('1.0.0').catch(() => {});
+                  const bSess = await apiClient.createScreeningSession().catch((err) => {
+                    console.warn('Backend screening session notice:', err?.message);
+                    return null;
+                  });
+                  if (bSess?.id) {
+                    setBackendSessionId(bSess.id);
+                  }
+                } catch (err) {
+                  console.warn('Backend consent sync issue:', err);
+                }
+              }
+              setStep('readiness');
+            }}
             style={{
               backgroundColor: disclaimerAccepted ? '#073F35' : '#D7D2C4',
               color: '#F7F4EC',

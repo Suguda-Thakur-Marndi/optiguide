@@ -47,3 +47,48 @@ test('Interactive Demo Tumbling E levels are calibrated', () => {
   assert.ok(demoFile.includes("snellen: '20/20'"), 'Has 20/20 optotype level');
   assert.ok(demoFile.includes('targetOrientation'), 'Supports orientation rotation');
 });
+test('API client provides full backend authentication, user profile, and screening methods', () => {
+  const clientFile = fs.readFileSync(path.resolve('./src/services/apiClient.ts'), 'utf-8');
+  assert.ok(clientFile.includes('checkBackendHealth'), 'Has checkBackendHealth');
+  assert.ok(clientFile.includes('checkDatabaseHealth'), 'Has checkDatabaseHealth');
+  assert.ok(clientFile.includes('register('), 'Has register method');
+  assert.ok(clientFile.includes('login('), 'Has login method');
+  assert.ok(clientFile.includes('refreshTokens('), 'Has refreshTokens method');
+  assert.ok(clientFile.includes('logout('), 'Has logout method');
+  assert.ok(clientFile.includes('logoutAll('), 'Has logoutAll method');
+  assert.ok(clientFile.includes('getMe('), 'Has getMe method');
+  assert.ok(clientFile.includes('updateProfile('), 'Has updateProfile method');
+  assert.ok(clientFile.includes('getUserSessions('), 'Has getUserSessions method');
+  assert.ok(clientFile.includes('getClinicalReviewAccess('), 'Has getClinicalReviewAccess method');
+  assert.ok(clientFile.includes('getScreeningConsent('), 'Has getScreeningConsent method');
+  assert.ok(clientFile.includes('acceptScreeningConsent('), 'Has acceptScreeningConsent method');
+  assert.ok(clientFile.includes('createScreeningSession('), 'Has createScreeningSession method');
+  assert.ok(clientFile.includes('completeScreeningSession('), 'Has completeScreeningSession method');
+  assert.ok(clientFile.includes('cancelScreeningSession('), 'Has cancelScreeningSession method');
+  assert.ok(clientFile.includes('recordVisualAcuity('), 'Has recordVisualAcuity method');
+  assert.ok(clientFile.includes('getVisualAcuity('), 'Has getVisualAcuity method');
+  assert.ok(clientFile.includes('recordAstigmatism('), 'Has recordAstigmatism method');
+  assert.ok(clientFile.includes('getAstigmatism('), 'Has getAstigmatism method');
+  assert.ok(clientFile.includes('recordColorVision('), 'Has recordColorVision method');
+  assert.ok(clientFile.includes('getColorVision('), 'Has getColorVision method');
+  assert.ok(clientFile.includes('getSessionSummary('), 'Has getSessionSummary method');
+});
+
+test('AuthModal component integrates login, registration, and user session management', () => {
+  const modalFile = fs.readFileSync(path.resolve('./src/components/layout/AuthModal.tsx'), 'utf-8');
+  assert.ok(modalFile.includes('handleLogin'), 'Has handleLogin handler');
+  assert.ok(modalFile.includes('handleRegister'), 'Has handleRegister handler');
+  assert.ok(modalFile.includes('handleUpdateProfile'), 'Has handleUpdateProfile handler');
+  assert.ok(modalFile.includes('handleLogout'), 'Has handleLogout handler');
+  assert.ok(modalFile.includes('handleLogoutAll'), 'Has handleLogoutAll handler');
+});
+
+test('ScreeningFlowPage integrates backend screening consent, clinical assessments, and session completion', () => {
+  const pageFile = fs.readFileSync(path.resolve('./src/pages/ScreeningFlowPage.tsx'), 'utf-8');
+  assert.ok(pageFile.includes('apiClient.acceptScreeningConsent'), 'Calls acceptScreeningConsent');
+  assert.ok(pageFile.includes('apiClient.createScreeningSession'), 'Calls createScreeningSession');
+  assert.ok(pageFile.includes('apiClient.recordVisualAcuity'), 'Calls recordVisualAcuity');
+  assert.ok(pageFile.includes('apiClient.recordAstigmatism'), 'Calls recordAstigmatism');
+  assert.ok(pageFile.includes('apiClient.recordColorVision'), 'Calls recordColorVision');
+  assert.ok(pageFile.includes('apiClient.completeScreeningSession'), 'Calls completeScreeningSession');
+});

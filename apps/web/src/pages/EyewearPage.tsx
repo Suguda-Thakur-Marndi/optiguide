@@ -78,7 +78,7 @@ export const EyewearPage: React.FC<EyewearPageProps> = ({ session, onSelectProdu
           Curated eyewear designs selected for ergonomic comfort, rural durability, and compatibility with your preliminary screening parameters.
         </p>
 
-        {session && session.results.pdEstimation && (
+        {session && session.results?.pdEstimation && (
           <div
             style={{
               marginTop: '16px',
@@ -95,7 +95,7 @@ export const EyewearPage: React.FC<EyewearPageProps> = ({ session, onSelectProdu
             <GlassesIcon size={20} color="#073F35" />
             <span>
               Configured for Participant PD:{' '}
-              <strong>{session.results.pdEstimation.pupillaryDistanceMm.toFixed(1)} mm</strong>
+              <strong>{session.results?.pdEstimation?.pupillaryDistanceMm.toFixed(1)} mm</strong>
             </span>
           </div>
         )}

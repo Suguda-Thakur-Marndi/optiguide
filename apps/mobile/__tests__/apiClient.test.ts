@@ -149,4 +149,63 @@ describe('ApiClient', () => {
     expect(apiClient.getAuthToken()).toBeNull();
     expect(apiClient.getRefreshToken()).toBeNull();
   });
+
+  it('should call clinical assessment endpoints with correct URL and payload', async () => {
+    apiClient.setAuthToken('clinical_jwt');
+
+    const mockAcuity = { id: 'acuity-1', test_eye: 'right', snellen_fraction: '20/20' };
+    const mockAstig = { id: 'astig-1', chart_type: 'clock_dial', has_uniform_clarity: true };
+    const mockColor = { id: 'color-1', deficiency_indicated: false };
+    const mockSummary = { session_id: 'sess-123', referral_recommended: false, referral_reasons: [] };
+
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => mockAcuity,
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => mockAstig,
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => mockColor,
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        json: async () => mockSummary,
+      } as any);
+
+    const acuityRes = await apiClient.recordVisualAcuity('sess-123', {
+      test_eye: 'right',
+      snellen_fraction: '20/20',
+      logmar: 0.0,
+      decimal_acuity: 1.0,
+    });
+    expect(acuityRes).toEqual(mockAcuity);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://test-server:8000/api/v1/screening/sessions/sess-123/acuity',
+      expect.objectContaining({ method: 'POST' })
+    );
+
+    const astigRes = await apiClient.recordAstigmatism('sess-123', {
+      chart_type: 'clock_dial',
+      has_uniform_clarity: true,
+    });
+    expect(astigRes).toEqual(mockAstig);
+
+    const colorRes = await apiClient.recordColorVision('sess-123', {
+      total_plates_presented: 4,
+      correct_plate_count: 4,
+      deficiency_indicated: false,
+    });
+    expect(colorRes).toEqual(mockColor);
+
+    const summaryRes = await apiClient.getSessionSummary('sess-123');
+    expect(summaryRes).toEqual(mockSummary);
+  });
 });

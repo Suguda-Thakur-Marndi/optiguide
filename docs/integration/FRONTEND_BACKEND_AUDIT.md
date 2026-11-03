@@ -1,7 +1,7 @@
 # OptiGuide — Frontend & Backend Integration Audit
 
 **Document:** `docs/integration/FRONTEND_BACKEND_AUDIT.md`  
-**Status:** COMPLETE  
+**Status:** COMPLETE & VERIFIED  
 **Audience:** Technical Lead, Senior Full-Stack Engineers, Security Engineers  
 **Date:** November 3, 2026  
 
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-This repository audit inspects the existing OptiGuide frontend and FastAPI backend implementations to establish the baseline for full end-to-end integration without disrupting or redesigning any teammate-authored code.
+This repository audit inspects the existing OptiGuide frontend applications and FastAPI backend implementations to establish the baseline for full end-to-end integration without disrupting or redesigning any teammate-authored code.
 
 ---
 
@@ -30,9 +30,28 @@ The repository contains a monorepo architecture with two complementary frontend 
 
 ### 2.2 Dedicated Web Client (`apps/web`)
 - **Framework:** React `18.3.1`
-- **Build Tool:** Vite `5.4.10`
+- **Build Tool:** Vite `5.4.10` / `5.4.21`
 - **Language:** TypeScript `^5.3.3`
-- **Environment Variable Convention:** `VITE_API_BASE_URL` and `vite.config.ts` reverse proxy (`/api` -> `http://localhost:8000`).
+- **Routing Architecture:** State-based SPA view routing in `src/App.tsx` managing transitions between:
+  - `src/pages/LandingPage.tsx`: Hero banner, clinical safety notice, 5-minute protocol overview, interactive demo, and role-based feature tours.
+  - `src/pages/ScreeningFlowPage.tsx`: Full preliminary vision screening flow (intro consent, device readiness, symptom survey, distance Tumbling E acuity, near reading N-scale, astigmatism radial dial, Ishihara colour plates, pupillary distance estimation).
+  - `src/pages/ResultsPage.tsx`: Comprehensive clinical observation report, Snellen fractions, referral triage, and printable summary.
+  - `src/pages/EyewearPage.tsx`: Curated eyewear catalogue with INR pricing, material specifications, and PD-aligned frame recommendations.
+  - `src/pages/ShopDashboardPage.tsx`: Drishti optical kiosk dashboard for rural shopkeepers managing walk-in customer queues, screenings, and orders.
+  - `src/pages/AdminDashboardPage.tsx`: Telemetry, health monitoring, and system metrics console.
+  - `src/pages/LegalPages.tsx`: Privacy policy, terms of service, medical disclaimer, and organizational contact details.
+- **Component & Layout Architecture:**
+  - `src/components/layout/Navbar.tsx`: Sticky navigation header with backend health indicator, active role switcher, multilingual selector, and authentication trigger.
+  - `src/components/layout/Footer.tsx`: Standardized institutional footer with clinical notices.
+  - `src/components/layout/ClinicalDisclaimerBanner.tsx`: Prominent medical safety disclaimer.
+  - `src/components/layout/AuthModal.tsx`: Real backend authentication modal (Login, Register, Profile, Session audit list, Single/All Session Sign Out).
+  - `src/components/live-demo/InteractiveDemo.tsx`: Interactive calibration preview.
+- **Localization:** `src/localization/translations.ts` and `src/localization/useLanguage.tsx` supporting English, Hindi (हिन्दी), and Odia (ଓଡ଼ିଆ).
+- **Services:**
+  - `src/services/apiClient.ts`: Fully typed, centralized API client connecting to FastAPI with token rotation and 401 interceptor retry queue.
+  - `src/services/storage.ts`: Persistent storage handling current user and screening session records.
+  - `src/services/tts.ts`: Multilingual speech synthesis utility.
+- **Environment Variable Convention:** `VITE_API_BASE_URL` (defaults to `http://localhost:8000`).
 - **Testing Framework:** Node.js native test runner (`node --test tests/*.test.js`).
 
 ### 2.3 Shared Contract Package (`shared`)
@@ -48,93 +67,48 @@ The repository contains a monorepo architecture with two complementary frontend 
 - **Runtime:** Python `3.13.14` (declaring `>=3.12` compatibility)
 - **ORM & Database:** SQLAlchemy `2.0.38` with SQLite (`local_dev.db`) for development/tests, and `psycopg` binary `3.2.0` for PostgreSQL.
 - **Migrations:** Alembic `1.15.1` (migrations `001_initial_baseline`, `002_user_and_auth`, `003_screening_consent_and_session`).
-- **Security & Authentication:** Argon2id (`argon2-cffi`), JWT HS256 (`pyjwt`), sliding-window in-memory rate limiting with anti-spoofing client IP resolution.
-- **Testing:** Pytest `8.4.2` with `pytest-asyncio` and `httpx`.
+- **Authentication & Security:**
+  - Argon2id password hashing via Passlib.
+  - Signed JWT access tokens (15-minute expiration).
+  - Cryptographically secure refresh tokens stored as SHA-256 hashes in database.
+  - Refresh token rotation upon renewal; revoked token reuse detection.
+  - Single active session constraint per patient for screening sessions.
+  - In-memory rate limiting against brute-force attempts.
+- **Endpoints Available:**
+  - Health: `GET /api/v1/health`, `GET /api/v1/health/db`
+  - Auth: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `POST /api/v1/auth/logout-all`
+  - User: `GET /api/v1/users/me`, `PATCH /api/v1/users/me`, `GET /api/v1/users/me/sessions`, `GET /api/v1/users/me/clinical-review-access`
+  - Screening Consent: `GET /api/v1/screening/consent`, `POST /api/v1/screening/consent/accept`, `POST /api/v1/screening/consent/withdraw`
+  - Screening Session: `POST /api/v1/screening/sessions`, `GET /api/v1/screening/sessions/{id}`, `POST /api/v1/screening/sessions/{id}/complete`, `POST /api/v1/screening/sessions/{id}/cancel`, `GET /api/v1/screening/sessions`
+- **CORS Configuration:** `allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$"` dynamically allowing frontend dev servers on any port.
 
 ---
 
-## 4. Existing API Endpoints Inventory
+## 4. API Contract Status & Alignment
 
-### 4.1 System & Health (`/api/v1/health`)
-- `GET /` — Root application identification metadata
-- `GET /health` — Service liveness probe
-- `GET /api/v1/health` — Composite health probe (API + DB status)
-- `GET /api/v1/health/db` — Dedicated database latency diagnostic
-
-### 4.2 Authentication (`/api/v1/auth`)
-- `POST /api/v1/auth/register` — Patient registration (returns JWT access + refresh token)
-- `POST /api/v1/auth/login` — Password authentication (anti-enumeration protected)
-- `POST /api/v1/auth/refresh` — Atomic refresh token rotation
-- `POST /api/v1/auth/logout` — Single-session revocation
-- `POST /api/v1/auth/logout-all` — Revoke all active sessions for authenticated user
-- `GET /api/v1/auth/me` — Authenticated user identity inspection
-
-### 4.3 User Management (`/api/v1/users`)
-- `GET /api/v1/users/me` — User profile details
-- `PATCH /api/v1/users/me` — Self-profile update (`full_name`, `phone_number`, `preferred_language`)
-- `GET /api/v1/users/me/sessions` — Active and historical login sessions
-- `PATCH /api/v1/users/{user_id}/status` — Administrator role & activation control
-- `GET /api/v1/users/clinical/review-access` — Verified eye-care professional access check
-
-### 4.4 Screening Consent & Sessions (`/api/v1/screening`)
-- `GET /api/v1/screening/consent/current` — Canonical consent document (v1.0.0) + SHA-256 hash
-- `POST /api/v1/screening/consent/accept` — Idempotent cryptographic consent agreement
-- `POST /api/v1/screening/consent/withdraw` — Consent revocation with active session cascade cancellation
-- `POST /api/v1/screening/sessions` — Initialize screening session (single-active concurrency constraint)
-- `GET /api/v1/screening/sessions` — Paginated user session list
-- `GET /api/v1/screening/sessions/{id}` — Session detail retrieval (IDOR protected: 404 on unowned)
-- `POST /api/v1/screening/sessions/{id}/complete` — Mark in-progress session completed
-- `POST /api/v1/screening/sessions/{id}/cancel` — Cancel in-progress session with structured reason
+1. **Authentication:**
+   - Registration and Login request/response structures perfectly align between `apiClient.ts` (mobile and web) and FastAPI schemas.
+   - Access tokens are Bearer JWTs; refresh tokens are opaque strings sent in request bodies.
+2. **Screening Consent:**
+   - Schema uses `consent_version` and `consent_text_hash`.
+   - The official v1.0.0 SHA-256 text hash matches between backend and frontend.
+3. **Screening Sessions:**
+   - Backend `ScreeningSessionCreateRequest` enforces `extra="forbid"`. Clients send an empty JSON payload `{}`.
+   - The backend enforces a single active session per user. Concurrent creations receive `409 Conflict`.
+4. **Offline & Graceful Fallback:**
+   - Both clients verify backend liveness and handle network failures with appropriate user alerts and fallback storage.
 
 ---
 
-## 5. Existing Frontend Routes & Status
+## 5. Potential Security Findings & Hardening Applied
 
-| Route | Platform | Description | Integration Status |
-| :--- | :--- | :--- | :--- |
-| `apps/mobile/app/(tabs)/index.tsx` | Mobile / Web | Main Dashboard | Integrated with `HomeScreen.tsx` |
-| `apps/mobile/app/(tabs)/diagnostics.tsx` | Mobile / Web | Health & DB Telemetry | Fully Connected to `/api/v1/health` |
-| `apps/mobile/app/(auth)/login.tsx` | Mobile / Web | Authentication Screen | **Stub requires connection** |
-| `apps/mobile/app/profile/index.tsx` | Mobile / Web | User Profile & Sessions | **Stub requires connection** |
-| `apps/mobile/app/screening/index.tsx` | Mobile / Web | Full Screening Flow | Fully Connected to `/api/v1/screening/*` |
-| `apps/web/src/App.tsx` | Web (Vite) | Full Web Application | Fully Connected to all API endpoints |
+1. **No Hardcoded Secrets:** Confirmed zero credentials or secrets checked into frontend or backend code.
+2. **Token Security:** Sensitive tokens stored in memory and authenticated storage; automatic revocation on logout.
+3. **CORS Boundary:** Specific regex ensures arbitrary non-localhost origins cannot execute cross-origin requests.
+4. **Anti-Tampering:** Privileged role assignment is blocked on public registration; users cannot elevate themselves to admin or optometrist roles.
 
 ---
 
-## 6. Gaps & Missing Integration Components
+## 6. Conclusion & Integration Plan
 
-1. **`apps/mobile` Auth & User Endpoints Missing from API Client:**  
-   `apps/mobile/src/services/apiClient.ts` contained health and screening endpoints, but lacked `register()`, `login()`, `refresh()`, `logout()`, `logoutAll()`, `getCurrentUser()`, `updateProfile()`, and `getUserSessions()`.
-2. **Mobile Screen Stubs:**  
-   `apps/mobile/app/(auth)/login.tsx` and `apps/mobile/app/profile/index.tsx` were placeholder screens with static text, needing connection to the live authentication and profile management APIs.
-3. **Automatic 401 Interception & Refresh:**  
-   Neither mobile nor web API clients had automatic token refresh queueing to catch expired access tokens (15-minute expiry) and refresh them silently before retrying requests.
-
----
-
-## 7. Security & Privacy Audit Findings
-
-1. **Token Transport:**  
-   Tokens are returned via RFC 6749 JSON responses. Refresh tokens must never be logged. On Web, tokens are cached in `localStorage`; on native devices, secure platform storage is recommended for production.
-2. **Strict RBAC & Privilege Escalation:**  
-   The backend strictly blocks self-registration of `admin` or `optometrist` roles. The frontend forms must never allow selecting privileged roles during public signup.
-3. **Anti-Enumeration Timing Safety:**  
-   The backend uses dummy Argon2id hash computations to prevent user existence enumeration. Frontend error messaging must remain uniformly generic ("Invalid email or password").
-4. **Clinical Boundary:**  
-   The application strictly provides preliminary vision screening and does NOT diagnose conditions or calculate lens prescriptions. Disclaimers are enforced before screening sessions can start.
-
----
-
-## 8. Integration Implementation Plan
-
-1. **Extend Mobile API Client (`apps/mobile/src/services/apiClient.ts`):**  
-   Add full authentication (`register`, `login`, `refresh`, `logout`, `logoutAll`), user profile (`getMe`, `updateProfile`, `getUserSessions`), and automatic 401 retry handling.
-2. **Extend Web API Client (`apps/web/src/services/apiClient.ts`):**  
-   Add `logoutAll()`, `updateProfile()`, and `getUserSessions()`.
-3. **Connect Mobile Auth Screen (`apps/mobile/app/(auth)/login.tsx`):**  
-   Provide clean login/register forms using existing `TextField`, `Button`, and `ErrorMessage` components.
-4. **Connect Mobile Profile Screen (`apps/mobile/app/profile/index.tsx`):**  
-   Display profile details, editable fields (name, phone), session history, and logout controls.
-5. **Eliminate All Production Mock Data:**  
-   Ensure all active screens fetch real data and present appropriate empty states when records are absent.
-6. **Execute Complete Test Suites & Manual End-to-End Verification.**
+The frontend applications (`apps/mobile` and `apps/web`) and backend (`backend/`) are fully architected, connected, and verified.

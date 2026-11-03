@@ -4,6 +4,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.models.screening_assessment import (
+    AstigmatismAssessment,
+    ColorVisionAssessment,
+    VisualAcuityAssessment,
+)
 from app.models.screening_audit_event import ScreeningAuditEvent
 from app.models.screening_consent import ScreeningConsent
 from app.models.screening_session import ScreeningSession
@@ -11,7 +16,7 @@ from app.schemas.screening import ScreeningSessionStatus
 
 
 class ScreeningRepository:
-    """Data access repository for consent, screening sessions, and audit events."""
+    """Data access repository for consent, screening sessions, clinical assessments, and audit events."""
 
     # -------------------------------------------------------------------------
     # Consent Management
@@ -156,6 +161,76 @@ class ScreeningRepository:
         result = db.execute(stmt)
         db.commit()
         return result.rowcount
+
+    # -------------------------------------------------------------------------
+    # Clinical Assessments (Acuity, Astigmatism, Color Vision)
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def create_acuity_assessment(
+        db: Session, assessment: VisualAcuityAssessment
+    ) -> VisualAcuityAssessment:
+        """Persists a visual acuity assessment record."""
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+
+    @staticmethod
+    def list_acuity_assessments_for_session(
+        db: Session, session_id: uuid.UUID
+    ) -> list[VisualAcuityAssessment]:
+        """Retrieves all visual acuity assessment records for a session."""
+        stmt = (
+            select(VisualAcuityAssessment)
+            .where(VisualAcuityAssessment.session_id == session_id)
+            .order_by(VisualAcuityAssessment.created_at.asc())
+        )
+        return list(db.execute(stmt).scalars().all())
+
+    @staticmethod
+    def create_astigmatism_assessment(
+        db: Session, assessment: AstigmatismAssessment
+    ) -> AstigmatismAssessment:
+        """Persists an astigmatism dial screening assessment."""
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+
+    @staticmethod
+    def list_astigmatism_assessments_for_session(
+        db: Session, session_id: uuid.UUID
+    ) -> list[AstigmatismAssessment]:
+        """Retrieves all astigmatism assessments for a session."""
+        stmt = (
+            select(AstigmatismAssessment)
+            .where(AstigmatismAssessment.session_id == session_id)
+            .order_by(AstigmatismAssessment.created_at.asc())
+        )
+        return list(db.execute(stmt).scalars().all())
+
+    @staticmethod
+    def create_color_vision_assessment(
+        db: Session, assessment: ColorVisionAssessment
+    ) -> ColorVisionAssessment:
+        """Persists a color vision plate screening assessment."""
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+
+    @staticmethod
+    def list_color_vision_assessments_for_session(
+        db: Session, session_id: uuid.UUID
+    ) -> list[ColorVisionAssessment]:
+        """Retrieves all color vision plate assessments for a session."""
+        stmt = (
+            select(ColorVisionAssessment)
+            .where(ColorVisionAssessment.session_id == session_id)
+            .order_by(ColorVisionAssessment.created_at.asc())
+        )
+        return list(db.execute(stmt).scalars().all())
 
     # -------------------------------------------------------------------------
     # Privacy-Conscious Audit Telemetry

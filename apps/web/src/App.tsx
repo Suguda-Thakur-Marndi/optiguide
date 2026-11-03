@@ -9,6 +9,8 @@ import { ShopDashboardPage } from './pages/ShopDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { LegalPages } from './pages/LegalPages';
 import { LanguageProvider } from './localization/useLanguage';
+import { AuthModal } from './components/layout/AuthModal';
+import { apiClient } from './services/apiClient';
 import { checkBackendHealth } from './services/apiClient';
 import { getCurrentUser, setCurrentUser, getActiveSession } from './services/storage';
 import { ScreeningSession, UserProfile, CustomerRecord, UserRole } from '@optiguide/shared';
@@ -19,12 +21,31 @@ export default function App() {
   const [activeSession, setActiveSession] = useState<ScreeningSession | null>(getActiveSession());
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [screeningCustomer, setScreeningCustomer] = useState<CustomerRecord | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
 
-  // Poll backend health once on mount
+  // Poll backend health once on mount and sync authenticated user
   useEffect(() => {
     checkBackendHealth().then((status) => {
       setBackendOnline(status.online);
     });
+
+    if (apiClient.getAccessToken()) {
+      apiClient.getMe().then((me) => {
+        const userProfile: UserProfile = {
+          id: me.id,
+          email: me.email,
+          fullName: me.full_name,
+          role: (me.role as UserRole) || 'individual',
+          preferredLanguage: 'en',
+          createdAt: me.created_at || new Date().toISOString(),
+          updatedAt: me.updated_at || new Date().toISOString(),
+        };
+        setCurrentUser(userProfile);
+        setCurrentUserState(userProfile);
+      }).catch(() => {
+        // Token invalid or expired
+      });
+    }
   }, []);
 
   // Handle role switching from navbar
@@ -82,6 +103,7 @@ export default function App() {
           currentUser={currentUser}
           onSelectRole={handleSelectRole}
           backendOnline={backendOnline}
+          onOpenAuth={() => setAuthModalOpen(true)}
         />
 
         <main style={{ flex: 1 }}>
@@ -155,6 +177,34 @@ export default function App() {
           onNavigate={(route) => {
             setCurrentRoute(route);
             window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          currentUser={currentUser}
+          onAuthSuccess={(updatedUser) => {
+            setCurrentUserState(updatedUser);
+            if (updatedUser.role === 'shopkeeper') {
+              setCurrentRoute('shop-dashboard');
+            } else if (updatedUser.role === 'admin') {
+              setCurrentRoute('admin-dashboard');
+            }
+          }}
+          onLogoutSuccess={() => {
+            const guest: UserProfile = {
+              id: 'usr-guest',
+              email: 'guest@optiguide.local',
+              fullName: 'Guest Citizen',
+              role: 'guest',
+              preferredLanguage: 'en',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            setCurrentUser(guest);
+            setCurrentUserState(guest);
+            setCurrentRoute('home');
           }}
         />
       </div>
