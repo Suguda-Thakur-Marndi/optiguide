@@ -13,35 +13,49 @@ backend/
 ├── app/
 │   ├── main.py                  # Application factory, CORS, exception handlers, lifecycle
 │   ├── api/
-│   │   ├── dependencies.py      # Database session and security dependency injection
+│   │   ├── dependencies.py      # Database session, get_current_user, RBAC, rate-limiting
 │   │   └── v1/
 │   │       ├── router.py        # Version 1 API router aggregator
-│   │       └── health.py        # /health, /health/database, and /health/db endpoints
+│   │       ├── health.py        # /health, /health/database, and /health/db endpoints
+│   │       ├── auth.py          # /auth/register, /login, /refresh, /logout, /me
+│   │       └── users.py         # /users/me, /users/me/sessions, /users/{id}/status
 │   ├── core/
-│   │   ├── config.py            # Centralized Pydantic BaseSettings
-│   │   ├── logging.py           # Structured logging with credential redaction
-│   │   └── exceptions.py        # Core custom exception hierarchy
+│   │   ├── config.py            # Centralized Pydantic BaseSettings & JWT configuration
+│   │   ├── logging.py           # Structured logging with SanitizingFilter and credential masking
+│   │   ├── exceptions.py        # Core custom exception hierarchy
+│   │   └── security.py          # Argon2id password hashing and JWT access token engine
 │   ├── database/
 │   │   ├── base.py              # DeclarativeBase for SQLAlchemy models
-│   │   ├── session.py           # Engine pooling and live connection pinging
-│   │   └── init_db.py           # Schema initialization utility
+│   │   ├── session.py           # Engine pooling, get_db dependency, connection ping
+│   │   └── init_db.py           # Schema initialization utility (local dev / test only)
 │   ├── models/                  # Declarative ORM models
+│   │   ├── user.py              # User entity (UUID, email, password hash, role)
+│   │   └── session.py           # UserSession entity (refresh token hash, rotation state)
 │   ├── schemas/
+│   │   ├── auth.py              # UserRegister, UserLogin, AuthResponse, UserProfileResponse
 │   │   ├── health.py            # AppInfo, Health, and DatabaseHealth schemas
-│   │   ├── common.py            # Generic pagination schemas
+│   │   ├── common.py            # Generic pagination schemas (PEP 695)
 │   │   └── error.py             # RFC-compliant error envelope schema
 │   ├── repositories/            # Data access abstraction layer
+│   │   ├── user_repo.py         # User entity queries and updates
+│   │   └── session_repo.py      # Refresh session queries, rotation, and revocation
 │   ├── services/                # Domain business logic layer
+│   │   ├── auth_service.py      # Registration, authentication, token rotation, logout
+│   │   └── user_service.py      # Profile management and session inspection
 │   ├── middleware/
-│   │   ├── error_handler.py     # Global error interceptor
+│   │   ├── error_handler.py     # Global error interceptor (RFC envelopes)
 │   │   └── logging_middleware.py# Request execution timing (X-Process-Time-Ms)
 │   └── utils/                   # Shared backend utility functions
 ├── migrations/                  # Alembic migration revisions
+│   ├── versions/
+│   │   ├── 001_initial_baseline.py  # Phase 1 baseline migration anchor
+│   │   └── 002_user_and_auth.py     # Phase 2 users and user_sessions tables
+│   └── env.py                   # Migration environment with dual sys.path
 ├── tests/
-│   ├── unit/                    # Configuration, schema, and exception unit tests
-│   ├── integration/             # Database session and ping integration tests
-│   ├── api/                     # Health and error envelope HTTP tests
-│   └── conftest.py              # Pytest fixtures and test client configuration
+│   ├── unit/                    # Configuration, schema, exception, security unit tests
+│   ├── integration/             # Database session, auth persistence, and ping integration tests
+│   ├── api/                     # Health, auth, user, and error envelope HTTP tests
+│   └── conftest.py              # Pytest fixtures and isolated test client configuration
 ├── .env.example                 # Environment configuration template
 ├── alembic.ini                  # Alembic CLI migration configuration
 ├── pyproject.toml               # Build configuration, Ruff settings, and Pytest configuration
@@ -53,7 +67,7 @@ backend/
 
 ## 2. Python Prerequisites
 
-- **Python Version:** `>= 3.11` (Tested & verified on `Python 3.12` and `Python 3.13.14`)
+- **Python Version:** `>= 3.12` (Tested & verified on `Python 3.12` and `Python 3.13.14`)
 - **Package Manager:** `pip`
 - **Operating System:** Windows 10/11 (PowerShell), macOS, or Linux
 
@@ -71,118 +85,93 @@ python -m venv .venv
 ```powershell
 .\.venv\Scripts\Activate.ps1
 ```
-*(If PowerShell restricts execution scripts, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first).*
 
 ### Step 3: Install Dependencies
 ```powershell
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Step 4: Configure Environment Variables
-Copy `.env.example` to `.env`:
+Copy template and configure local settings:
 ```powershell
 Copy-Item .env.example .env
 ```
 
----
-
-## 4. Database Configuration
-
-### Local Development / Isolated Testing (SQLite)
-The default setting uses a zero-dependency local SQLite database:
-```env
-DATABASE_URL=sqlite:///./local_dev.db
-DB_ECHO=false
-```
-
-### Production / Staging Deployment (PostgreSQL)
-Configure a PostgreSQL connection string utilizing the modern `psycopg` driver:
-```env
-DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/optiguide_dev
-DB_ECHO=false
-```
-
----
-
-## 5. Database Migrations (Alembic)
-
-Run migrations to apply the current schema:
+### Step 5: Run Database Migrations
 ```powershell
 alembic upgrade head
 ```
 
-Generate a new migration when SQLAlchemy models change:
+### Step 6: Start FastAPI Development Server
 ```powershell
-alembic revision --autogenerate -m "describe_migration_changes"
+python -m uvicorn app.main:app --reload --port 8000
 ```
-
-Rollback the previous migration:
-```powershell
-alembic downgrade -1
-```
-
----
-
-## 6. Running the FastAPI Application
-
-Start the local development server with auto-reload:
-```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-Once running:
+API endpoints will be accessible at:
 - **Root Info:** `http://localhost:8000/`
-- **Root Health:** `http://localhost:8000/health`
-- **System Health:** `http://localhost:8000/api/v1/health`
-- **Database Health:** `http://localhost:8000/api/v1/health/database`
-- **Interactive Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc Documentation:** `http://localhost:8000/redoc`
+- **API Liveness:** `http://localhost:8000/health`
+- **API v1 Diagnostics:** `http://localhost:8000/api/v1/health`
+- **Interactive Swagger Docs (when `APP_DEBUG=true`):** `http://localhost:8000/docs`
 
 ---
 
-## 7. Automated Testing (Pytest)
+## 4. Authentication & Authorization Architecture
 
-Run the full backend test suite:
-```powershell
-pytest -v
-```
+### 4.1 Password Security (Argon2id)
+Passwords are encrypted using Argon2id via `argon2-cffi` configured with OWASP-recommended parameters:
+- **Memory Cost:** 64 MB ($65,536$ KiB)
+- **Time Cost:** 3 passes
+- **Parallelism:** 4 threads
+- **Minimum Length:** 8 characters, requiring at least one letter and one number.
 
-Run tests by category:
-```powershell
-# API endpoint tests
-pytest tests/api -v
+### 4.2 Token Management
+- **Access Tokens:** Short-lived JWTs (15 minutes default) signed with `HS256`. Carries `sub`, `email`, `role`, and `type="access"` claims.
+- **Refresh Tokens:** High-entropy base64 strings (256 bits). Only SHA-256 hashes are persisted in the database (`user_sessions` table).
+- **Token Rotation:** Every `/refresh` operation revokes the current session and issues a new token pair.
+- **Reuse Detection:** If an already-rotated or revoked refresh token is presented, the system triggers a security alert and immediately terminates all active sessions for that user account.
 
-# Database integration tests
-pytest tests/integration -v
-
-# Unit tests
-pytest tests/unit -v
-```
-
----
-
-## 8. Code Quality & Linting (Ruff)
-
-Verify formatting and linting:
-```powershell
-ruff check .
-ruff format --check .
-```
-
-Automatically apply recommended fixes:
-```powershell
-ruff check . --fix
-ruff format .
-```
+### 4.3 Role-Based Access Control (RBAC)
+Supported user roles:
+- `patient`: Vision screening taker, eyewear recommendation recipient.
+- `optometrist`: Clinician reviewing preliminary screenings and prescriptions.
+- `shopkeeper`: Retail staff matching physical frames.
+- `admin`: System administrator for user status and maintenance.
 
 ---
 
-## 9. Troubleshooting
+## 5. API Endpoint Inventory
 
-| Issue | Cause | Solution |
-| :--- | :--- | :--- |
-| **PowerShell script execution error** | Script execution policy | Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
-| **Port 8000 in use** | Process conflict | Set `PORT=8001` in `.env` and start with `--port 8001` |
-| **PostgreSQL connection failure** | Service not running | Ensure PostgreSQL is active or switch to `sqlite:///./local_dev.db` |
-| **CORS blocked on web/mobile** | Origin not in whitelist | Add client origin (e.g., `http://localhost:8081`) to `CORS_ORIGINS` in `.env` |
+### 5.1 Health & Diagnostics
+- `GET /`: Application identification and runtime status.
+- `GET /health`: Fast service liveness probe.
+- `GET /api/v1/health`: Composite system and database readiness check.
+- `GET /api/v1/health/database`: Live database ping with latency measurement.
+- `GET /api/v1/health/db`: Mobile/web diagnostic screen alias.
+
+### 5.2 Authentication Endpoints (`/api/v1/auth`)
+- `POST /api/v1/auth/register`: Create new user account (rate-limited: 5/min).
+- `POST /api/v1/auth/login`: Authenticate credentials and receive token pair (rate-limited: 10/min).
+- `POST /api/v1/auth/refresh`: Rotate refresh token and obtain new access token.
+- `POST /api/v1/auth/logout`: Revoke active refresh session.
+- `POST /api/v1/auth/logout-all`: Revoke all sessions for current authenticated user.
+- `GET /api/v1/auth/me`: Retrieve current authenticated user profile.
+
+### 5.3 User Profile Endpoints (`/api/v1/users`)
+- `GET /api/v1/users/me`: Retrieve current user profile.
+- `PATCH /api/v1/users/me`: Update editable profile fields (`full_name`, `phone_number`, `preferred_language`).
+- `GET /api/v1/users/me/sessions`: List active and historical sessions for current user.
+- `PATCH /api/v1/users/{user_id}/status`: Admin-only endpoint to activate, deactivate, or assign roles.
+
+---
+
+## 6. Testing & Quality Assurance
+
+### Run Test Suite
+```powershell
+python -m pytest backend/tests -v
+```
+
+### Run Linter & Formatter
+```powershell
+ruff check backend
+ruff format --check backend
+```

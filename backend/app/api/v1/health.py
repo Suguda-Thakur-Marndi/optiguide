@@ -1,9 +1,12 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
-from backend.app.core.config import settings
-from backend.app.database.session import check_db_connectivity
-from backend.app.schemas.health import DatabaseHealthResponse, HealthResponse
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.database.session import check_db_connectivity, get_db
+from app.schemas.health import DatabaseHealthResponse, HealthResponse
 
 router = APIRouter()
 
@@ -14,8 +17,11 @@ router = APIRouter()
     summary="System Health Check",
     description="Returns operational status of OptiGuide API and database connection.",
 )
-async def get_system_health(response: Response) -> HealthResponse:
-    is_connected, _, _, _ = check_db_connectivity()
+async def get_system_health(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+) -> HealthResponse:
+    is_connected, _, _, _ = check_db_connectivity(db)
     now_utc = datetime.now(UTC).isoformat()
 
     if is_connected:
@@ -51,8 +57,11 @@ async def get_system_health(response: Response) -> HealthResponse:
     include_in_schema=False,
     summary="Database Connectivity Diagnostic Alias",
 )
-async def get_db_health(response: Response) -> DatabaseHealthResponse:
-    is_connected, latency_ms, db_type, error_msg = check_db_connectivity()
+async def get_db_health(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+) -> DatabaseHealthResponse:
+    is_connected, latency_ms, db_type, error_msg = check_db_connectivity(db)
 
     if is_connected:
         return DatabaseHealthResponse(
@@ -69,5 +78,5 @@ async def get_db_health(response: Response) -> DatabaseHealthResponse:
             database="disconnected",
             database_type=db_type,
             latency_ms=None,
-            message=error_msg or "Database connection failed",
+            message=error_msg or "Database service is unavailable",
         )

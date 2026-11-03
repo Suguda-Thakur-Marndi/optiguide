@@ -1,8 +1,9 @@
 import pytest
-from backend.app.schemas.common import PaginatedResponse
-from backend.app.schemas.error import ApiErrorPayload, ErrorDetail, ErrorResponse
-from backend.app.schemas.health import AppInfoResponse, DatabaseHealthResponse, HealthResponse
 from pydantic import ValidationError
+
+from app.schemas.common import PaginatedResponse
+from app.schemas.error import ApiErrorPayload, ErrorDetail, ErrorResponse
+from app.schemas.health import AppInfoResponse, DatabaseHealthResponse, HealthResponse
 
 
 def test_app_info_schema():

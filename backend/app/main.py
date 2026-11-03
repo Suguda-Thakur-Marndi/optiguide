@@ -1,19 +1,29 @@
+import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
-from backend.app.api.v1.router import api_router
-from backend.app.core.config import settings
-from backend.app.core.logging import logger
-from backend.app.middleware.error_handler import (
-    generic_exception_handler,
-    http_exception_handler,
-    validation_exception_handler,
-)
-from backend.app.middleware.logging_middleware import RequestTimingMiddleware
-from backend.app.schemas.health import AppInfoResponse, HealthResponse
+# Ensure backend root is on sys.path for both 'app' and 'backend.app' executions
+_backend_root = str(Path(__file__).resolve().parent.parent)
+if _backend_root not in sys.path:
+    sys.path.insert(0, _backend_root)
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.api.v1.router import api_router
+from app.core.config import settings
+from app.core.exceptions import OptiGuideException
+from app.core.logging import logger
+from app.middleware.error_handler import (
+    generic_exception_handler,
+    http_exception_handler,
+    optiguide_exception_handler,
+    validation_exception_handler,
+)
+from app.middleware.logging_middleware import RequestTimingMiddleware
+from app.schemas.health import AppInfoResponse, HealthResponse
 
 
 def create_application() -> FastAPI:
@@ -23,6 +33,7 @@ def create_application() -> FastAPI:
         description="OptiGuide Vision Screening and Eyewear Guidance API",
         docs_url="/docs" if settings.APP_DEBUG else None,
         redoc_url="/redoc" if settings.APP_DEBUG else None,
+        openapi_url="/openapi.json" if settings.APP_DEBUG else None,
     )
 
     # Middleware: Request timing
@@ -39,6 +50,7 @@ def create_application() -> FastAPI:
 
     # Exception Handlers
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(OptiGuideException, optiguide_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, generic_exception_handler)
 

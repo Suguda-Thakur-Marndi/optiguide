@@ -1,4 +1,4 @@
-from backend.app.core.exceptions import (
+from app.core.exceptions import (
     DatabaseConnectionException,
     EntityNotFoundException,
     OptiGuideException,

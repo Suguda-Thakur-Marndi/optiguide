@@ -1,10 +1,11 @@
-from backend.app.database.session import SessionLocal, check_db_connectivity, engine, get_db
 from sqlalchemy import text
 
+from app.database.session import SessionLocal, check_db_connectivity, engine, get_db
 
-def test_db_connectivity_live():
+
+def test_db_connectivity_live(db_session):
     """check_db_connectivity should execute a ping and return positive status."""
-    is_connected, latency_ms, db_type, error = check_db_connectivity()
+    is_connected, latency_ms, db_type, error = check_db_connectivity(db_session)
     assert is_connected is True
     assert db_type == "sqlite"
     assert latency_ms is not None
@@ -41,5 +42,5 @@ def test_session_local_direct_instantiation():
 
 
 def test_engine_dialect():
-    """Engine should be configured with SQLite for isolated test suite."""
+    """Engine should be configured with SQLite dialect for local dev."""
     assert engine.dialect.name == "sqlite"

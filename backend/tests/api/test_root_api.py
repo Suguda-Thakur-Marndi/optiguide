@@ -1,3 +1,9 @@
+from starlette.testclient import TestClient
+
+from app.core.config import settings
+from app.main import create_application
+
+
 def test_root_endpoint_identification(client):
     """GET / should provide application identification metadata."""
     response = client.get("/")
@@ -18,3 +24,40 @@ def test_root_health_endpoint(client):
     assert data["service"] == "optiguide-api"
     assert data["version"] == "1.0.0"
     assert "timestamp" in data
+
+
+def test_swagger_disabled_when_debug_false(client):
+    """
+    Security Test (Task 8):
+    When APP_DEBUG is False (production default), /docs, /redoc, and /openapi.json
+    MUST NOT be exposed to unauthorized callers and must return 404 Not Found.
+    """
+    assert settings.APP_DEBUG is False
+
+    docs_res = client.get("/docs")
+    assert docs_res.status_code == 404
+
+    redoc_res = client.get("/redoc")
+    assert redoc_res.status_code == 404
+
+    openapi_res = client.get("/openapi.json")
+    assert openapi_res.status_code == 404
+
+
+def test_swagger_enabled_when_debug_true():
+    """
+    Verification Test (Task 8):
+    When APP_DEBUG is explicitly enabled, /docs and /openapi.json are accessible.
+    """
+    original_debug = settings.APP_DEBUG
+    try:
+        settings.APP_DEBUG = True
+        debug_app = create_application()
+        with TestClient(debug_app, raise_server_exceptions=False) as debug_client:
+            docs_res = debug_client.get("/docs")
+            assert docs_res.status_code == 200
+
+            openapi_res = debug_client.get("/openapi.json")
+            assert openapi_res.status_code == 200
+    finally:
+        settings.APP_DEBUG = original_debug
