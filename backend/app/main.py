@@ -40,13 +40,15 @@ def create_application() -> FastAPI:
     app.add_middleware(RequestTimingMiddleware)
 
     # Middleware: CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs = {
+        "allow_origins": settings.CORS_ORIGINS,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    if settings.APP_ENV != "production":
+        cors_kwargs["allow_origin_regex"] = r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$"
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
 
     # Exception Handlers
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
