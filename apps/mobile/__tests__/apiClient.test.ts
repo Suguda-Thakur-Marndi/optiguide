@@ -73,4 +73,80 @@ describe('ApiClient', () => {
       'Unable to reach backend at http://test-server:8000'
     );
   });
+
+  it('should authenticate user and store access and refresh tokens', async () => {
+    const mockAuthResponse = {
+      access_token: 'test_access_jwt',
+      refresh_token: 'test_refresh_token',
+      token_type: 'Bearer',
+      expires_in: 900,
+      user: {
+        id: 'u-123',
+        email: 'patient@example.com',
+        full_name: 'Test Patient',
+        role: 'patient',
+        is_active: true,
+        is_verified: false,
+      },
+    };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (h: string) => (h === 'content-type' ? 'application/json' : null),
+      },
+      json: async () => mockAuthResponse,
+    } as any);
+
+    const res = await apiClient.login({ email: 'patient@example.com', password: 'Password123!' });
+    expect(res.access_token).toBe('test_access_jwt');
+    expect(apiClient.getAuthToken()).toBe('test_access_jwt');
+    expect(apiClient.getRefreshToken()).toBe('test_refresh_token');
+  });
+
+  it('should inject Authorization Bearer header into protected calls', async () => {
+    apiClient.setAuthToken('my_secret_token');
+
+    const mockProfile = {
+      id: 'u-123',
+      email: 'patient@example.com',
+      full_name: 'Test Patient',
+      role: 'patient',
+      is_active: true,
+    };
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (h: string) => (h === 'content-type' ? 'application/json' : null),
+      },
+      json: async () => mockProfile,
+    } as any);
+
+    await apiClient.getMe();
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://test-server:8000/api/v1/users/me',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my_secret_token',
+        }),
+      })
+    );
+  });
+
+  it('should clear tokens on logout', async () => {
+    apiClient.setTokens('access', 'refresh');
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (h: string) => (h === 'content-type' ? 'application/json' : null),
+      },
+      json: async () => ({ message: 'Logged out' }),
+    } as any);
+
+    await apiClient.logout();
+    expect(apiClient.getAuthToken()).toBeNull();
+    expect(apiClient.getRefreshToken()).toBeNull();
+  });
 });

@@ -8,10 +8,15 @@ import ActiveSessionScreen from '../../src/features/screening/ActiveSessionScree
 import SessionHistoryScreen from '../../src/features/screening/SessionHistoryScreen';
 import { LoadingIndicator } from '../../src/components/LoadingIndicator';
 import { ErrorMessage } from '../../src/components/ErrorMessage';
+import { Button } from '../../src/components/Button';
 
 type ScreeningFlowState = 'intro' | 'consent' | 'active_session' | 'history';
 
-export default function ScreeningIndex() {
+interface ScreeningIndexProps {
+  onBack?: () => void;
+}
+
+export default function ScreeningIndex({ onBack }: ScreeningIndexProps = {}) {
   const [currentStep, setCurrentStep] = useState<ScreeningFlowState>('intro');
   const [activeSession, setActiveSession] = useState<ApiScreeningSessionResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -93,6 +98,17 @@ export default function ScreeningIndex() {
 
   return (
     <View style={styles.container}>
+      {onBack && (
+        <View style={styles.navBar}>
+          <Button
+            title="← Back to Dashboard"
+            variant="outline"
+            size="sm"
+            onPress={onBack}
+          />
+        </View>
+      )}
+
       {errorMessage && (
         <View style={styles.errorWrapper}>
           <ErrorMessage
@@ -144,6 +160,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  navBar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   centerContainer: {
     flex: 1,

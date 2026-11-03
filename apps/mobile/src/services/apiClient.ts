@@ -6,6 +6,10 @@ import {
   ConsentResponse,
   ApiScreeningSessionResponse,
   ScreeningSessionListResponse,
+  ApiAuthResponse,
+  ApiUserProfileResponse,
+  ApiTokenRefreshResponse,
+  ApiSessionItem,
 } from '@optiguide/shared';
 
 // Determine initial base URL from Expo Constants or environment variables
@@ -23,6 +27,8 @@ const resolveDefaultApiUrl = (): string => {
 class ApiClient {
   private baseUrl: string;
   private authToken: string | null = null;
+  private refreshToken: string | null = null;
+  private isRefreshing: boolean = false;
 
   constructor() {
     this.baseUrl = resolveDefaultApiUrl();
@@ -45,7 +51,21 @@ class ApiClient {
     return this.authToken;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  public setTokens(access: string | null, refresh: string | null): void {
+    this.authToken = access;
+    this.refreshToken = refresh;
+  }
+
+  public getRefreshToken(): string | null {
+    return this.refreshToken;
+  }
+
+  public clearTokens(): void {
+    this.authToken = null;
+    this.refreshToken = null;
+  }
+
+  private async request<T>(endpoint: string, options?: RequestInit, isRetry: boolean = false): Promise<T> {
     const url = `${this.baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
     const headers: Record<string, string> = {
@@ -61,6 +81,24 @@ class ApiClient {
         headers,
       });
 
+      // Handle 401 Unauthorized with token refresh if we have a refresh token
+      if (
+        response.status === 401 &&
+        !isRetry &&
+        this.refreshToken &&
+        !endpoint.includes('/auth/login') &&
+        !endpoint.includes('/auth/refresh')
+      ) {
+        try {
+          await this.refreshTokens();
+          // Retry the request once with new token
+          return this.request<T>(endpoint, options, true);
+        } catch (_) {
+          this.clearTokens();
+          throw new Error('Session expired. Please sign in again.');
+        }
+      }
+
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
       const data = isJson ? await response.json() : await response.text();
@@ -74,7 +112,10 @@ class ApiClient {
 
       return data as T;
     } catch (error: any) {
-      if (error instanceof TypeError && error.message.includes('Network request failed')) {
+      if (
+        error instanceof TypeError &&
+        (error.message.includes('Network request failed') || error.message.includes('fetch'))
+      ) {
         throw new Error(`Unable to reach backend at ${this.baseUrl}. Please verify your network and server status.`);
       }
       throw error;
@@ -107,31 +148,120 @@ class ApiClient {
   }
 
   // --------------------------------------------------------------------------
+  // Authentication Endpoints
+  // --------------------------------------------------------------------------
+
+  public async register(payload: {
+    email: string;
+    password: string;
+    full_name: string;
+    preferred_language?: string;
+  }): Promise<ApiAuthResponse> {
+    const data = await this.request<ApiAuthResponse>('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    this.setTokens(data.access_token, data.refresh_token);
+    return data;
+  }
+
+  public async login(payload: { email: string; password: string }): Promise<ApiAuthResponse> {
+    const data = await this.request<ApiAuthResponse>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    this.setTokens(data.access_token, data.refresh_token);
+    return data;
+  }
+
+  public async refreshTokens(): Promise<ApiTokenRefreshResponse> {
+    if (!this.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    if (this.isRefreshing) {
+      throw new Error('Refresh token rotation in progress');
+    }
+    this.isRefreshing = true;
+    try {
+      const data = await this.request<ApiTokenRefreshResponse>('/api/v1/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: this.refreshToken }),
+      });
+      this.setTokens(data.access_token, data.refresh_token);
+      return data;
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  public async logout(): Promise<{ message: string }> {
+    try {
+      if (this.refreshToken) {
+        await this.request<{ message: string }>('/api/v1/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token: this.refreshToken }),
+        });
+      }
+    } finally {
+      this.clearTokens();
+    }
+    return { message: 'Logged out successfully' };
+  }
+
+  public async logoutAll(): Promise<{ message: string }> {
+    try {
+      return await this.request<{ message: string }>('/api/v1/auth/logout-all', {
+        method: 'POST',
+      });
+    } finally {
+      this.clearTokens();
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // User Management Endpoints
+  // --------------------------------------------------------------------------
+
+  public async getMe(): Promise<ApiUserProfileResponse> {
+    return this.request<ApiUserProfileResponse>('/api/v1/users/me');
+  }
+
+  public async updateProfile(payload: {
+    full_name?: string;
+    phone_number?: string;
+    preferred_language?: string;
+  }): Promise<ApiUserProfileResponse> {
+    return this.request<ApiUserProfileResponse>('/api/v1/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public async getUserSessions(): Promise<ApiSessionItem[]> {
+    return this.request<ApiSessionItem[]>('/api/v1/users/me/sessions');
+  }
+
+  public async getClinicalReviewAccess(): Promise<{ status: string; can_review_screenings: boolean }> {
+    return this.request<{ status: string; can_review_screenings: boolean }>('/api/v1/users/clinical/review-access');
+  }
+
+  // --------------------------------------------------------------------------
   // Consent Management Endpoints (Phase 3.1)
   // --------------------------------------------------------------------------
 
-  /**
-   * Get server-controlled consent document and user state (GET /api/v1/screening/consent/current)
-   */
   public async getScreeningConsent(): Promise<ConsentStatusResponse> {
     return this.request<ConsentStatusResponse>('/api/v1/screening/consent/current');
   }
 
-  /**
-   * Accept current consent document (POST /api/v1/screening/consent/accept)
-   */
-  public async acceptScreeningConsent(version: string): Promise<ConsentResponse> {
+  public async acceptScreeningConsent(version: string = '1.0.0'): Promise<ConsentResponse> {
     return this.request<ConsentResponse>('/api/v1/screening/consent/accept', {
       method: 'POST',
       body: JSON.stringify({ version }),
     });
   }
 
-  /**
-   * Withdraw active consent (POST /api/v1/screening/consent/withdraw)
-   */
-  public async withdrawScreeningConsent(): Promise<{ message: string; success: boolean }> {
-    return this.request<{ message: string; success: boolean }>('/api/v1/screening/consent/withdraw', {
+  public async withdrawScreeningConsent(): Promise<{ message: string; active_sessions_cancelled: number }> {
+    return this.request<{ message: string; active_sessions_cancelled: number }>('/api/v1/screening/consent/withdraw', {
       method: 'POST',
     });
   }
@@ -140,58 +270,44 @@ class ApiClient {
   // Screening Session Lifecycle Endpoints (Phase 3.1)
   // --------------------------------------------------------------------------
 
-  /**
-   * Initiate a new screening session (POST /api/v1/screening/sessions)
-   */
-  public async createScreeningSession(): Promise<ApiScreeningSessionResponse> {
+  public async createScreeningSession(payload?: { device_info?: string; notes?: string }): Promise<ApiScreeningSessionResponse> {
     return this.request<ApiScreeningSessionResponse>('/api/v1/screening/sessions', {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(payload || {}),
     });
   }
 
-  /**
-   * List user's screening sessions (GET /api/v1/screening/sessions)
-   */
   public async listScreeningSessions(
     status?: string,
-    limit: number = 20,
-    offset: number = 0
+    page: number = 1,
+    pageSize: number = 20
   ): Promise<ScreeningSessionListResponse> {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
-    params.append('limit', limit.toString());
-    params.append('offset', offset.toString());
+    params.append('page', page.toString());
+    params.append('page_size', pageSize.toString());
 
     return this.request<ScreeningSessionListResponse>(`/api/v1/screening/sessions?${params.toString()}`);
   }
 
-  /**
-   * Get a screening session by ID (GET /api/v1/screening/sessions/{sessionId})
-   */
   public async getScreeningSession(sessionId: string): Promise<ApiScreeningSessionResponse> {
     return this.request<ApiScreeningSessionResponse>(`/api/v1/screening/sessions/${sessionId}`);
   }
 
-  /**
-   * Complete an in-progress screening session (POST /api/v1/screening/sessions/{sessionId}/complete)
-   */
   public async completeScreeningSession(sessionId: string): Promise<ApiScreeningSessionResponse> {
     return this.request<ApiScreeningSessionResponse>(`/api/v1/screening/sessions/${sessionId}/complete`, {
       method: 'POST',
     });
   }
 
-  /**
-   * Cancel an in-progress screening session (POST /api/v1/screening/sessions/{sessionId}/cancel)
-   */
   public async cancelScreeningSession(
     sessionId: string,
-    reason?: string
+    reason: string = 'user_cancelled',
+    notes?: string
   ): Promise<ApiScreeningSessionResponse> {
     return this.request<ApiScreeningSessionResponse>(`/api/v1/screening/sessions/${sessionId}/cancel`, {
       method: 'POST',
-      body: JSON.stringify(reason ? { reason } : {}),
+      body: JSON.stringify({ reason, notes }),
     });
   }
 }

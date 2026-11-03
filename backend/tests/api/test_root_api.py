@@ -61,3 +61,17 @@ def test_swagger_enabled_when_debug_true():
             assert openapi_res.status_code == 200
     finally:
         settings.APP_DEBUG = original_debug
+
+
+def test_cors_web_origins_allowed(client):
+    """Verify web frontend origins (Vite on :5173 and Expo on :8081) receive CORS headers."""
+    for origin in ["http://localhost:5173", "http://localhost:8081", "http://127.0.0.1:5173"]:
+        headers = {
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        }
+        res = client.options("/api/v1/health", headers=headers)
+        assert res.status_code == 200
+        assert res.headers.get("access-control-allow-origin") == origin
+        assert res.headers.get("access-control-allow-credentials") == "true"

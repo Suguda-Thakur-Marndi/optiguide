@@ -3,18 +3,46 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ScreenContainer } from '../components/ScreenContainer';
 import { Button } from '../components/Button';
 import { colors, spacing, typography, borderRadius, elevation } from '../theme/tokens';
+import { ApiUserProfileResponse } from '@optiguide/shared';
 
 export interface HomeScreenProps {
   onNavigateToDiagnostics: () => void;
+  onNavigateToScreening?: () => void;
+  onNavigateToLogin?: () => void;
+  onNavigateToProfile?: () => void;
+  currentUser?: ApiUserProfileResponse | null;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigateToDiagnostics }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({
+  onNavigateToDiagnostics,
+  onNavigateToScreening,
+  onNavigateToLogin,
+  onNavigateToProfile,
+  currentUser,
+}) => {
   return (
     <ScreenContainer>
-      {/* Header & Logo Placeholder */}
+      {/* Header & User Navigation */}
       <View style={styles.header}>
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoText}>👁️ OptiGuide</Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoText}>👁️ OptiGuide</Text>
+          </View>
+          {currentUser ? (
+            <Button
+              title={`👤 ${currentUser.full_name}`}
+              variant="outline"
+              size="sm"
+              onPress={onNavigateToProfile || (() => {})}
+            />
+          ) : (
+            <Button
+              title="Sign In"
+              variant="outline"
+              size="sm"
+              onPress={onNavigateToLogin || (() => {})}
+            />
+          )}
         </View>
         <Text style={styles.heading}>Vision Screening & Guidance</Text>
         <Text style={styles.subheading}>
@@ -37,10 +65,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigateToDiagnostics 
           Standardized visual acuity checks, color perception indicators, and contrast sensitivity assessment.
         </Text>
         <Button
-          title="Start Screening (Phase 2)"
+          title="Start Screening"
           variant="primary"
-          disabled={true}
-          onPress={() => {}}
+          disabled={false}
+          onPress={onNavigateToScreening || (() => {})}
           style={styles.cardAction}
         />
       </View>
@@ -84,7 +112,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigateToDiagnostics 
 const styles = StyleSheet.create({
   header: {
     marginBottom: spacing.xl,
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   logoBadge: {
     backgroundColor: colors.primary[100],
