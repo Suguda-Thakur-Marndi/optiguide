@@ -1,0 +1,33 @@
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Testing & Linting
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+.ruff_cache/
+.mypy_cache/
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+local_dev.db
+test.db
+test_*.db
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key

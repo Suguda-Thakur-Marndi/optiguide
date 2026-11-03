@@ -5,12 +5,16 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Ensure backend root is on Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+# Ensure both backend root and repo root are on Python path
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+repo_root = os.path.abspath(os.path.join(backend_dir, ".."))
+for p in (backend_dir, repo_root):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-import backend.app.models  # noqa: F401
-from backend.app.core.config import settings
-from backend.app.database.base import Base
+import app.models  # noqa: F401
+from app.core.config import settings
+from app.database.base import Base
 
 config = context.config
 
