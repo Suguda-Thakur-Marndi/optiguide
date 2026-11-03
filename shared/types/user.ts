@@ -1,8 +1,15 @@
 /**
  * User & Authentication Types
+ * Conforming to OptiGuide PRD Section 3.1 & Section 4.2
  */
 
-export type UserRole = 'patient' | 'optometrist' | 'shopkeeper' | 'admin';
+export type UserRole =
+  | 'guest'
+  | 'individual'
+  | 'patient'
+  | 'shopkeeper'
+  | 'admin'
+  | 'optometrist';
 
 export interface UserProfile {
   id: string;
@@ -11,14 +18,16 @@ export interface UserProfile {
   role: UserRole;
   phoneNumber?: string;
   preferredLanguage: string;
+  shopName?: string;
+  shopLocation?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface AuthSession {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   tokenType: string;
-  expiresIn: number;
+  expiresIn?: number;
   user: UserProfile;
 }
