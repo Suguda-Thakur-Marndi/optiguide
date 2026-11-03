@@ -1,10 +1,11 @@
 /**
  * User & Authentication Types
- * Canonical Roles: 'user', 'shopkeeper', 'eye_care_professional', 'admin'
- * Backward Compatibility Aliases: 'patient' (alias for user), 'optometrist' (alias for eye_care_professional)
+ * Conforming to OptiGuide PRD Section 3.1 & Section 4.2
  */
 
 export type UserRole =
+  | 'guest'
+  | 'individual'
   | 'user'
   | 'patient'
   | 'optometrist'
@@ -21,6 +22,8 @@ export interface UserProfile {
   preferredLanguage: string;
   isActive?: boolean;
   isVerified?: boolean;
+  shopName?: string;
+  shopLocation?: string;
   createdAt: string;
   updatedAt: string;
   lastLoginAt?: string | null;
