@@ -48,11 +48,15 @@ def consented_session(db_session, test_subject) -> ScreeningSession:
     return sess
 
 
-def test_visual_acuity_recording_and_retrieval(client: TestClient, db_session, test_subject, consented_session):
+def test_visual_acuity_recording_and_retrieval(
+    client: TestClient, db_session, test_subject, consented_session
+):
     """Verifies recording distance visual acuity and retrieving results."""
     from app.core.security import create_access_token
 
-    token, _ = create_access_token(user_id=test_subject.id, email=test_subject.email, role="patient")
+    token, _ = create_access_token(
+        user_id=test_subject.id, email=test_subject.email, role="patient"
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     payload = {
@@ -100,11 +104,15 @@ def test_visual_acuity_recording_and_retrieval(client: TestClient, db_session, t
     assert items[0]["id"] == data["id"]
 
 
-def test_astigmatism_dial_screening_recording(client: TestClient, db_session, test_subject, consented_session):
+def test_astigmatism_dial_screening_recording(
+    client: TestClient, db_session, test_subject, consented_session
+):
     """Verifies recording radial clock dial / fan screening results."""
     from app.core.security import create_access_token
 
-    token, _ = create_access_token(user_id=test_subject.id, email=test_subject.email, role="patient")
+    token, _ = create_access_token(
+        user_id=test_subject.id, email=test_subject.email, role="patient"
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     payload = {
@@ -137,11 +145,15 @@ def test_astigmatism_dial_screening_recording(client: TestClient, db_session, te
     assert items[0]["sharpest_meridian_hour"] == 3
 
 
-def test_color_vision_plate_recording(client: TestClient, db_session, test_subject, consented_session):
+def test_color_vision_plate_recording(
+    client: TestClient, db_session, test_subject, consented_session
+):
     """Verifies recording pseudoisochromatic plate color screening."""
     from app.core.security import create_access_token
 
-    token, _ = create_access_token(user_id=test_subject.id, email=test_subject.email, role="patient")
+    token, _ = create_access_token(
+        user_id=test_subject.id, email=test_subject.email, role="patient"
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     payload = {
@@ -180,11 +192,15 @@ def test_color_vision_plate_recording(client: TestClient, db_session, test_subje
     assert items[0]["deficiency_type"] == "protan_deutan_red_green"
 
 
-def test_clinical_session_summary_and_triage(client: TestClient, db_session, test_subject, consented_session):
+def test_clinical_session_summary_and_triage(
+    client: TestClient, db_session, test_subject, consented_session
+):
     """Verifies that the session summary aggregates all findings and triggers referral recommendations."""
     from app.core.security import create_access_token
 
-    token, _ = create_access_token(user_id=test_subject.id, email=test_subject.email, role="patient")
+    token, _ = create_access_token(
+        user_id=test_subject.id, email=test_subject.email, role="patient"
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     # 1. Right eye normal (20/20 = logMAR 0.0)
@@ -216,7 +232,11 @@ def test_clinical_session_summary_and_triage(client: TestClient, db_session, tes
     # 3. Astigmatism non-uniform
     client.post(
         f"/api/v1/screening/sessions/{consented_session.id}/astigmatism",
-        json={"chart_type": "clock_dial", "has_uniform_clarity": False, "sharpest_meridian_hour": 1},
+        json={
+            "chart_type": "clock_dial",
+            "has_uniform_clarity": False,
+            "sharpest_meridian_hour": 1,
+        },
         headers=headers,
     )
 
@@ -237,11 +257,15 @@ def test_clinical_session_summary_and_triage(client: TestClient, db_session, tes
     assert summary["referral_recommended"] is True
     assert len(summary["referral_reasons"]) >= 2
     assert any("Interocular visual acuity asymmetry" in r for r in summary["referral_reasons"])
-    assert any("Reduced distance visual acuity in left eye" in r for r in summary["referral_reasons"])
+    assert any(
+        "Reduced distance visual acuity in left eye" in r for r in summary["referral_reasons"]
+    )
     assert "OptiGuide is a preliminary vision screening aid" in summary["clinical_disclaimer"]
 
 
-def test_clinical_assessment_idor_and_status_protection(client: TestClient, db_session, test_subject, consented_session):
+def test_clinical_assessment_idor_and_status_protection(
+    client: TestClient, db_session, test_subject, consented_session
+):
     """Verifies that other users cannot access assessments, and completed sessions reject mutations."""
     from app.core.security import create_access_token
 
@@ -256,19 +280,28 @@ def test_clinical_assessment_idor_and_status_protection(client: TestClient, db_s
     db_session.add(other_user)
     db_session.commit()
 
-    other_token, _ = create_access_token(user_id=other_user.id, email=other_user.email, role="patient")
+    other_token, _ = create_access_token(
+        user_id=other_user.id, email=other_user.email, role="patient"
+    )
     other_headers = {"Authorization": f"Bearer {other_token}"}
 
     # Stranger cannot post acuity to consented_session
     res = client.post(
         f"/api/v1/screening/sessions/{consented_session.id}/acuity",
-        json={"test_eye": "right", "snellen_fraction": "20/20", "logmar": 0.0, "decimal_acuity": 1.0},
+        json={
+            "test_eye": "right",
+            "snellen_fraction": "20/20",
+            "logmar": 0.0,
+            "decimal_acuity": 1.0,
+        },
         headers=other_headers,
     )
     assert res.status_code == 404
 
     # Complete the session
-    owner_token, _ = create_access_token(user_id=test_subject.id, email=test_subject.email, role="patient")
+    owner_token, _ = create_access_token(
+        user_id=test_subject.id, email=test_subject.email, role="patient"
+    )
     owner_headers = {"Authorization": f"Bearer {owner_token}"}
     client.post(
         f"/api/v1/screening/sessions/{consented_session.id}/complete",
@@ -278,7 +311,12 @@ def test_clinical_assessment_idor_and_status_protection(client: TestClient, db_s
     # Owner cannot record assessment on completed session
     res_after = client.post(
         f"/api/v1/screening/sessions/{consented_session.id}/acuity",
-        json={"test_eye": "right", "snellen_fraction": "20/20", "logmar": 0.0, "decimal_acuity": 1.0},
+        json={
+            "test_eye": "right",
+            "snellen_fraction": "20/20",
+            "logmar": 0.0,
+            "decimal_acuity": 1.0,
+        },
         headers=owner_headers,
     )
     assert res_after.status_code == 400

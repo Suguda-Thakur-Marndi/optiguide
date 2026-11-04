@@ -86,6 +86,19 @@ class ScreeningRepository:
         return db.execute(stmt).scalar_one_or_none()
 
     @staticmethod
+    def get_session_by_id_for_user(
+        db: Session,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> ScreeningSession | None:
+        """Retrieves a screening session by ID ensuring it belongs to user_id."""
+        stmt = select(ScreeningSession).where(
+            ScreeningSession.id == session_id,
+            ScreeningSession.user_id == user_id,
+        )
+        return db.execute(stmt).scalar_one_or_none()
+
+    @staticmethod
     def get_active_session_for_user(db: Session, user_id: uuid.UUID) -> ScreeningSession | None:
         """Finds any session currently in progress for the specified user."""
         stmt = (

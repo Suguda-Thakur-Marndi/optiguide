@@ -31,9 +31,7 @@ class VisualAcuityCreateRequest(BaseModel):
     """Payload for submitting visual acuity test findings."""
 
     test_eye: str = Field(..., pattern="^(right|left|both|od|os|ou)$")
-    snellen_fraction: str = Field(
-        ..., max_length=20, json_schema_extra={"example": "20/20"}
-    )
+    snellen_fraction: str = Field(..., max_length=20, json_schema_extra={"example": "20/20"})
     logmar: float = Field(..., ge=-0.3, le=2.0)
     decimal_acuity: float = Field(..., gt=0.0, le=2.5)
     tested_distance_meters: float = Field(default=0.6, gt=0.1, le=10.0)

@@ -144,9 +144,7 @@ def run_all_journeys():
     )
     print(f"Status: {st}")
     assert st == 201 or st == 200
-    print(
-        f"Consent Accepted: v{data['consent_version']}, Hash={data['consent_text_hash'][:16]}..."
-    )
+    print(f"Consent Accepted: v{data['consent_version']}, Hash={data['consent_text_hash'][:16]}...")
 
     # Journey 12: Create a screening session
     print("\n--- JOURNEY 12: Initialize Screening Session ---")
@@ -280,7 +278,12 @@ def run_all_journeys():
     st_locked, _data_locked = make_request(
         f"/api/v1/screening/sessions/{session_id}/acuity",
         method="POST",
-        data={"test_eye": "right", "snellen_fraction": "20/20", "logmar": 0.0, "decimal_acuity": 1.0},
+        data={
+            "test_eye": "right",
+            "snellen_fraction": "20/20",
+            "logmar": 0.0,
+            "decimal_acuity": 1.0,
+        },
         headers=auth_header,
     )
     assert st_locked == 400

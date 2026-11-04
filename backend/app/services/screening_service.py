@@ -227,7 +227,9 @@ class ScreeningService:
             status=ScreeningSessionStatus.IN_PROGRESS.value,
             started_at=now,
             notes=getattr(payload, "notes", None) if payload else None,
-            device_info=json.dumps(getattr(payload, "device_info", None)) if payload and getattr(payload, "device_info", None) else None,
+            device_info=json.dumps(getattr(payload, "device_info", None))
+            if payload and getattr(payload, "device_info", None)
+            else None,
         )
         created_session = ScreeningRepository.create_session(db, session)
 
@@ -475,7 +477,11 @@ class ScreeningService:
             if payload.has_uniform_clarity:
                 obs = "Radial clock chart appeared uniformly clear with no prominent meridian asymmetry observed."
             else:
-                axis = f"{payload.sharpest_meridian_hour} o'clock" if payload.sharpest_meridian_hour else "indicated"
+                axis = (
+                    f"{payload.sharpest_meridian_hour} o'clock"
+                    if payload.sharpest_meridian_hour
+                    else "indicated"
+                )
                 obs = f"Potential meridian clarity variance observed along {axis} axis. Requires professional examination."
 
         axes_str = json.dumps(payload.indicated_axes) if payload.indicated_axes else None

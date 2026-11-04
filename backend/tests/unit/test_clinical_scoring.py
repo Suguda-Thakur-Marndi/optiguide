@@ -1,7 +1,9 @@
 import math
 
 
-def calculate_snellen_optotype_height_mm(distance_meters: float, snellen_denominator: int = 20) -> float:
+def calculate_snellen_optotype_height_mm(
+    distance_meters: float, snellen_denominator: int = 20
+) -> float:
     """
     Calculates the exact physical height in mm of a standard 5-arcminute Snellen letter.
     Standard Snellen formula: h = 2 * d * tan(5' / 2) * (snellen_denominator / 20)
