@@ -21,7 +21,8 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({
   onNewScreening,
   onGoHome,
 }) => {
-  const { results, recommendations } = session;
+  const { recommendations } = session;
+  const results = session.results || ({} as any);
   const isReferralNeeded = recommendations?.professionalReferralRequired;
 
   const handlePrint = () => {

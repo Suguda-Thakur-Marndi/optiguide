@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 
 class ScreeningSessionStatus(str, Enum):
@@ -27,15 +27,27 @@ class ConsentStatusResponse(BaseModel):
 
 
 class ConsentAcceptRequest(BaseModel):
-    """Payload for accepting the server-controlled screening consent."""
+    """
+    Payload for accepting the server-controlled screening consent.
+    Reconciles 'version' and 'consent_version' naming discrepancies.
+    """
 
-    version: str = Field(..., max_length=50, json_schema_extra={"example": "1.0.0"})
+    version: str = Field(
+        ...,
+        validation_alias=AliasChoices("version", "consent_version"),
+        max_length=50,
+        json_schema_extra={"example": "1.0.0"},
+    )
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class ConsentResponse(BaseModel):
-    """Model representation of a recorded consent decision."""
+    """
+    Model representation of a recorded consent decision.
+    Exposes canonical 'consent_version' and 'consent_text_hash',
+    plus backward-compatible computed aliases 'version' and 'hash'.
+    """
 
     id: uuid.UUID
     user_id: uuid.UUID
@@ -47,13 +59,21 @@ class ConsentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @computed_field
+    def version(self) -> str:
+        return self.consent_version
+
+    @computed_field
+    def hash(self) -> str:
+        return self.consent_text_hash
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class ScreeningSessionCreateRequest(BaseModel):
     """
     Payload for initiating a screening session.
-    Strictly forbids client-injected status, IDs, or timestamps.
+    Strictly empty schema that forbids any client-injected fields, IDs, or statuses.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -79,6 +99,8 @@ class ScreeningSessionResponse(BaseModel):
     consent_id: uuid.UUID
     status: str
     cancellation_reason: str | None = None
+    notes: str | None = None
+    device_info: str | None = None
     started_at: datetime
     completed_at: datetime | None = None
     cancelled_at: datetime | None = None

@@ -10,6 +10,7 @@ interface NavbarProps {
   currentUser: UserProfile | null;
   onSelectRole: (role: any) => void;
   backendOnline: boolean;
+  onOpenAuth?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,6 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onSelectRole,
   backendOnline,
+  onOpenAuth,
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -132,6 +134,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })}
           </div>
+
+          <span style={{ color: '#D7D2C4' }}>|</span>
+
+          {/* Account / Auth CTA */}
+          <button
+            onClick={onOpenAuth}
+            style={{
+              backgroundColor: '#073F35',
+              color: '#F7F4EC',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '3px 10px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <UserIcon size={12} color="#F7F4EC" />
+            {currentUser?.id && !currentUser.id.startsWith('usr-guest')
+              ? (currentUser.fullName || currentUser.email)
+              : 'Sign In / Register'}
+          </button>
         </div>
       </div>
 

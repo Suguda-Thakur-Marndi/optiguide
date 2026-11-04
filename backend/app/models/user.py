@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
 
 if TYPE_CHECKING:
+    from app.models.referral import PatientReferral, ProfessionalProfile
     from app.models.screening_consent import ScreeningConsent
     from app.models.screening_session import ScreeningSession
     from app.models.session import UserSession
@@ -95,6 +96,21 @@ class User(Base):
     screening_sessions: Mapped[list["ScreeningSession"]] = relationship(
         "ScreeningSession",
         back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    professional_profile: Mapped["ProfessionalProfile | None"] = relationship(
+        "ProfessionalProfile",
+        foreign_keys="ProfessionalProfile.user_id",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    referrals: Mapped[list["PatientReferral"]] = relationship(
+        "PatientReferral",
+        foreign_keys="PatientReferral.patient_id",
+        back_populates="patient",
         cascade="all, delete-orphan",
         lazy="selectin",
     )

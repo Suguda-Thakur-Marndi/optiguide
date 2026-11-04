@@ -10,6 +10,13 @@ import {
   ApiUserProfileResponse,
   ApiTokenRefreshResponse,
   ApiSessionItem,
+  VisualAcuityCreateRequest,
+  VisualAcuityResponse,
+  AstigmatismCreateRequest,
+  AstigmatismResponse,
+  ColorVisionCreateRequest,
+  ColorVisionResponse,
+  ClinicalSessionSummaryResponse,
 } from '@optiguide/shared';
 
 // Determine initial base URL from Expo Constants or environment variables
@@ -309,6 +316,56 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ reason, notes }),
     });
+  }
+
+  // --------------------------------------------------------------------------
+  // Clinical Assessment Endpoints (Phase 3.2 & 3.3)
+  // --------------------------------------------------------------------------
+
+  public async recordVisualAcuity(
+    sessionId: string,
+    payload: VisualAcuityCreateRequest
+  ): Promise<VisualAcuityResponse> {
+    return this.request<VisualAcuityResponse>(`/api/v1/screening/sessions/${sessionId}/acuity`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public async getVisualAcuity(sessionId: string): Promise<VisualAcuityResponse[]> {
+    return this.request<VisualAcuityResponse[]>(`/api/v1/screening/sessions/${sessionId}/acuity`);
+  }
+
+  public async recordAstigmatism(
+    sessionId: string,
+    payload: AstigmatismCreateRequest
+  ): Promise<AstigmatismResponse> {
+    return this.request<AstigmatismResponse>(`/api/v1/screening/sessions/${sessionId}/astigmatism`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public async getAstigmatism(sessionId: string): Promise<AstigmatismResponse[]> {
+    return this.request<AstigmatismResponse[]>(`/api/v1/screening/sessions/${sessionId}/astigmatism`);
+  }
+
+  public async recordColorVision(
+    sessionId: string,
+    payload: ColorVisionCreateRequest
+  ): Promise<ColorVisionResponse> {
+    return this.request<ColorVisionResponse>(`/api/v1/screening/sessions/${sessionId}/color-vision`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public async getColorVision(sessionId: string): Promise<ColorVisionResponse[]> {
+    return this.request<ColorVisionResponse[]>(`/api/v1/screening/sessions/${sessionId}/color-vision`);
+  }
+
+  public async getSessionSummary(sessionId: string): Promise<ClinicalSessionSummaryResponse> {
+    return this.request<ClinicalSessionSummaryResponse>(`/api/v1/screening/sessions/${sessionId}/summary`);
   }
 }
 

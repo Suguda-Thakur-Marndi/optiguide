@@ -172,3 +172,102 @@ export interface ScreeningSession {
   questionnaire?: QuestionnaireResponses;
   recommendations?: EyewearRecommendationSummary;
 }
+
+/**
+ * Phase 3.2 & 3.3 Clinical Assessment API Contracts
+ */
+export interface CalibrationMetadata {
+  screen_width_px?: number;
+  screen_height_px?: number;
+  display_dpi?: number;
+  physical_optotype_mm?: number;
+  viewing_distance_cm?: number;
+  is_verified?: boolean;
+}
+
+export interface VisualAcuityCreateRequest {
+  test_eye: 'left' | 'right' | 'binocular';
+  snellen_fraction: string;
+  logmar: number;
+  decimal_acuity: number;
+  tested_distance_meters?: number;
+  unassisted_or_corrected?: 'unassisted' | 'with_glasses' | 'with_contacts';
+  near_reading_label?: string | null;
+  near_reading_distance_cm?: number | null;
+  is_calibrated?: boolean;
+  calibration?: CalibrationMetadata | null;
+  observations?: string | null;
+}
+
+export interface VisualAcuityResponse {
+  id: string;
+  session_id: string;
+  test_eye: string;
+  snellen_fraction: string;
+  logmar: number;
+  decimal_acuity: number;
+  tested_distance_meters: number;
+  unassisted_or_corrected: string;
+  near_reading_label?: string | null;
+  near_reading_distance_cm?: number | null;
+  is_calibrated: boolean;
+  calibration_metadata?: string | null;
+  observations?: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
+export interface AstigmatismCreateRequest {
+  chart_type?: string;
+  has_uniform_clarity: boolean;
+  indicated_axes?: number[] | null;
+  sharpest_meridian_hour?: number | null;
+  screening_observation?: string | null;
+}
+
+export interface AstigmatismResponse {
+  id: string;
+  session_id: string;
+  chart_type: string;
+  has_uniform_clarity: boolean;
+  indicated_axes?: string | null;
+  sharpest_meridian_hour?: number | null;
+  screening_observation?: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
+export interface ColorVisionCreateRequest {
+  test_protocol?: string;
+  total_plates_presented: number;
+  correct_plate_count: number;
+  deficiency_indicated: boolean;
+  deficiency_type?: string | null;
+  responses_detail?: Array<Record<string, unknown>> | null;
+}
+
+export interface ColorVisionResponse {
+  id: string;
+  session_id: string;
+  test_protocol: string;
+  total_plates_presented: number;
+  correct_plate_count: number;
+  deficiency_indicated: boolean;
+  deficiency_type?: string | null;
+  responses_detail?: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
+export interface ClinicalSessionSummaryResponse {
+  session_id: string;
+  status: string;
+  started_at: string;
+  completed_at?: string | null;
+  referral_recommended: boolean;
+  referral_reasons: string[];
+  clinical_disclaimer: string;
+  visual_acuity_assessments: VisualAcuityResponse[];
+  astigmatism_assessments: AstigmatismResponse[];
+  color_vision_assessments: ColorVisionResponse[];
+}

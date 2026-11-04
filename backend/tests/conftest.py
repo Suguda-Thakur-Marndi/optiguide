@@ -1,4 +1,5 @@
 import sys
+import uuid
 from collections.abc import Generator
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from app.core.config import settings
 from app.database.base import Base
 from app.database.session import get_db
 from app.main import create_application
+from app.models.user import User
 
 # Dedicated in-memory SQLite test engine with StaticPool for test isolation.
 # Uses SQLite in-memory without touching any local or production database file or server.
@@ -96,3 +98,65 @@ def db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture
+def patient_user(db_session) -> User:
+    user = User(
+        email=f"patient_{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password="mocked_argon2_hash",
+        full_name="Test Patient",
+        role="patient",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def optometrist_user(db_session) -> User:
+    user = User(
+        email=f"optom_{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password="mocked_argon2_hash",
+        full_name="Dr. Jane Optometrist",
+        role="optometrist",
+        is_active=True,
+        is_verified=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def shopkeeper_user(db_session) -> User:
+    user = User(
+        email=f"shop_{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password="mocked_argon2_hash",
+        full_name="Local Shopkeeper",
+        role="shopkeeper",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def admin_user(db_session) -> User:
+    user = User(
+        email=f"admin_{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password="mocked_argon2_hash",
+        full_name="System Admin",
+        role="admin",
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user

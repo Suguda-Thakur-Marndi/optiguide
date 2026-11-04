@@ -103,3 +103,19 @@ async def verify_clinical_review_access(
     return MessageResponse(
         message=f"Access granted for verified clinician: {current_clinician.full_name} ({current_clinician.role})"
     )
+
+
+@router.get(
+    "/me/clinical-review-access",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Verify Clinical Review Authorization (Alias)",
+    description="Canonical alias for /users/clinical/review-access to support unified web and mobile clients.",
+    include_in_schema=False,
+)
+async def verify_clinical_review_access_alias(
+    current_clinician: Annotated[User, Depends(require_verified_professional)],
+) -> MessageResponse:
+    return MessageResponse(
+        message=f"Access granted for verified clinician: {current_clinician.full_name} ({current_clinician.role})"
+    )

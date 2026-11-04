@@ -1,5 +1,8 @@
 # OptiGuide — Backend Service Foundation
 
+> [!TIP]
+> **Complete Master Documentation:** For the unified single source of truth across all 4 project phases, see **[OptiGuide Backend Master Documentation](../docs/OPTIGUIDE_BACKEND_MASTER.md)**.
+
 High-performance, asynchronous REST API backend for the **OptiGuide** preliminary vision screening and eyewear guidance platform. Built with **FastAPI**, **Pydantic v2**, **SQLAlchemy 2.0**, and **Alembic**.
 
 ---

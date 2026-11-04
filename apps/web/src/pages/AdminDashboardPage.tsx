@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityIcon, RefreshIcon, ShieldAlertIcon, UserIcon, ShopIcon } from '../components/icons';
-import { CardSkeleton } from '../components/layout/SkeletonLoader';
 import { checkBackendHealth, checkDatabaseHealth, HealthStatus } from '../services/apiClient';
 import { getStoredCustomers, getStoredScreenings, getStoredReferrals } from '../services/storage';
 

@@ -2,12 +2,17 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Uuid
+from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
 if TYPE_CHECKING:
+    from app.models.screening_assessment import (
+        AstigmatismAssessment,
+        ColorVisionAssessment,
+        VisualAcuityAssessment,
+    )
     from app.models.screening_audit_event import ScreeningAuditEvent
     from app.models.screening_consent import ScreeningConsent
     from app.models.user import User
@@ -16,7 +21,8 @@ if TYPE_CHECKING:
 class ScreeningSession(Base):
     """
     SQLAlchemy model representing a preliminary vision screening session lifecycle.
-    Tracks status transitions: in_progress -> completed | cancelled.
+    Tracks status transitions: in_progress -> completed | cancelled,
+    and houses relational assessments for acuity, astigmatism, and color vision.
     """
 
     __tablename__ = "screening_sessions"
@@ -46,6 +52,14 @@ class ScreeningSession(Base):
     )
     cancellation_reason: Mapped[str | None] = mapped_column(
         String(255),
+        nullable=True,
+    )
+    notes: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+    device_info: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True,
     )
     started_at: Mapped[datetime] = mapped_column(
@@ -82,6 +96,25 @@ class ScreeningSession(Base):
     audit_events: Mapped[list["ScreeningAuditEvent"]] = relationship(
         "ScreeningAuditEvent",
         back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    acuity_assessments: Mapped[list["VisualAcuityAssessment"]] = relationship(
+        "VisualAcuityAssessment",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    astigmatism_assessments: Mapped[list["AstigmatismAssessment"]] = relationship(
+        "AstigmatismAssessment",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    color_vision_assessments: Mapped[list["ColorVisionAssessment"]] = relationship(
+        "ColorVisionAssessment",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
     def __repr__(self) -> str:
