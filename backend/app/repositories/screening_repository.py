@@ -202,6 +202,57 @@ class ScreeningRepository:
         return list(db.execute(stmt).scalars().all())
 
     @staticmethod
+    def get_acuity_assessment_by_id(
+        db: Session, assessment_id: uuid.UUID
+    ) -> VisualAcuityAssessment | None:
+        """Retrieves a single visual acuity assessment by ID."""
+        stmt = select(VisualAcuityAssessment).where(VisualAcuityAssessment.id == assessment_id)
+        return db.execute(stmt).scalar_one_or_none()
+
+    @staticmethod
+    def get_acuity_by_session_eye_type(
+        db: Session, session_id: uuid.UUID, test_eye: str, assessment_type: str
+    ) -> VisualAcuityAssessment | None:
+        """Retrieves an acuity assessment by session, test eye, and assessment type."""
+        stmt = select(VisualAcuityAssessment).where(
+            VisualAcuityAssessment.session_id == session_id,
+            VisualAcuityAssessment.test_eye == test_eye,
+            VisualAcuityAssessment.assessment_type == assessment_type,
+        )
+        return db.execute(stmt).scalar_one_or_none()
+
+    @staticmethod
+    def list_acuity_assessments_for_user(
+        db: Session, user_id: uuid.UUID, limit: int = 20, offset: int = 0
+    ) -> tuple[list[VisualAcuityAssessment], int]:
+        """Lists paginated acuity assessments for a user ordered by created_at desc."""
+        count_stmt = (
+            select(func.count())
+            .select_from(VisualAcuityAssessment)
+            .where(VisualAcuityAssessment.user_id == user_id)
+        )
+        total = db.execute(count_stmt).scalar_one()
+
+        stmt = (
+            select(VisualAcuityAssessment)
+            .where(VisualAcuityAssessment.user_id == user_id)
+            .order_by(VisualAcuityAssessment.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        items = list(db.execute(stmt).scalars().all())
+        return items, total
+
+    @staticmethod
+    def update_acuity_assessment(
+        db: Session, assessment: VisualAcuityAssessment
+    ) -> VisualAcuityAssessment:
+        """Commits and refreshes an updated acuity assessment."""
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+
+    @staticmethod
     def create_astigmatism_assessment(
         db: Session, assessment: AstigmatismAssessment
     ) -> AstigmatismAssessment:

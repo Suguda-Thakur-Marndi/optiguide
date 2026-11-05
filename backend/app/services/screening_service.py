@@ -32,6 +32,7 @@ from app.schemas.clinical_assessments import (
     ColorVisionResponse,
     VisualAcuityCreateRequest,
     VisualAcuityResponse,
+    VisualAcuitySummaryResponse,
 )
 from app.schemas.screening import (
     ConsentAcceptRequest,
@@ -43,6 +44,7 @@ from app.schemas.screening import (
     ScreeningSessionResponse,
     ScreeningSessionStatus,
 )
+from app.services.visual_acuity_service import VisualAcuityService
 
 # -----------------------------------------------------------------------------
 # Server-Controlled Official Consent Document (Version 1.0.0)
@@ -387,7 +389,8 @@ class ScreeningService:
     ) -> VisualAcuityResponse:
         """
         Records a visual acuity assessment for an in-progress screening session.
-        Applies physical calibration validation and Snellen/logMAR mapping.
+        Applies physical calibration validation, Snellen/logMAR mapping,
+        and test geometry verification.
         """
         session = ScreeningRepository.get_session_by_id(db, session_id)
         if not session or session.user_id != user.id:
@@ -398,38 +401,104 @@ class ScreeningService:
                 f"Cannot record assessment on screening session with status '{session.status}'."
             )
 
-        calib_str = None
-        if payload.calibration:
-            calib_str = json.dumps(payload.calibration.model_dump())
+        active_consent = ScreeningRepository.get_active_consent(db, user.id)
+        if not active_consent:
+            raise ConsentRequiredException(
+                "Active informed consent is required to record clinical assessments. "
+                "Please review and accept the screening consent disclosure."
+            )
 
-        assessment = VisualAcuityAssessment(
-            session_id=session_id,
-            user_id=user.id,
-            test_eye=payload.test_eye,
+        # 1. Canonicalize eye and assessment type
+        canonical_eye = VisualAcuityService.canonicalize_eye(payload.test_eye)
+        canonical_type = VisualAcuityService.canonicalize_assessment_type(payload.assessment_type)
+
+        # 2. Validate physical geometry
+        VisualAcuityService.validate_test_geometry(
+            assessment_type=canonical_type,
+            tested_distance_meters=payload.tested_distance_meters,
+            near_reading_distance_cm=payload.near_reading_distance_cm,
+        )
+
+        # 3. Clinical reconciliation & optics validation
+        logmar, decimal_acuity = VisualAcuityService.reconcile_and_validate(
             snellen_fraction=payload.snellen_fraction,
             logmar=payload.logmar,
             decimal_acuity=payload.decimal_acuity,
-            tested_distance_meters=payload.tested_distance_meters,
-            unassisted_or_corrected=payload.unassisted_or_corrected,
-            near_reading_label=payload.near_reading_label,
-            near_reading_distance_cm=payload.near_reading_distance_cm,
-            is_calibrated=payload.is_calibrated,
-            calibration_metadata=calib_str,
-            observations=payload.observations,
         )
-        saved = ScreeningRepository.create_acuity_assessment(db, assessment)
 
-        # Audit
+        # 4. Evaluate physical display calibration claims
+        calib_dict = payload.calibration.model_dump() if payload.calibration else None
+        is_calibrated, calib_str = VisualAcuityService.evaluate_calibration_claim(
+            client_is_calibrated=payload.is_calibrated,
+            calibration_dict=calib_dict,
+        )
+
+        # 5. Check for existing assessment to ensure idempotency / updates
+        existing = ScreeningRepository.get_acuity_by_session_eye_type(
+            db=db,
+            session_id=session_id,
+            test_eye=canonical_eye,
+            assessment_type=canonical_type,
+        )
+
+        now = datetime.now(UTC)
+        if existing:
+            existing.snellen_fraction = payload.snellen_fraction
+            existing.logmar = logmar
+            existing.decimal_acuity = decimal_acuity
+            existing.tested_distance_meters = (
+                payload.tested_distance_meters
+                if payload.tested_distance_meters is not None
+                else 0.6
+            )
+            existing.unassisted_or_corrected = payload.unassisted_or_corrected
+            existing.near_reading_label = payload.near_reading_label
+            existing.near_reading_distance_cm = payload.near_reading_distance_cm
+            existing.is_calibrated = is_calibrated
+            existing.calibration_metadata = calib_str
+            existing.observations = payload.observations
+            existing.updated_at = now
+            saved = ScreeningRepository.update_acuity_assessment(db, existing)
+            event_type = "ACUITY_ASSESSMENT_UPDATED"
+        else:
+            assessment = VisualAcuityAssessment(
+                session_id=session_id,
+                user_id=user.id,
+                test_eye=canonical_eye,
+                assessment_type=canonical_type,
+                snellen_fraction=payload.snellen_fraction,
+                logmar=logmar,
+                decimal_acuity=decimal_acuity,
+                tested_distance_meters=(
+                    payload.tested_distance_meters
+                    if payload.tested_distance_meters is not None
+                    else 0.6
+                ),
+                unassisted_or_corrected=payload.unassisted_or_corrected,
+                near_reading_label=payload.near_reading_label,
+                near_reading_distance_cm=payload.near_reading_distance_cm,
+                is_calibrated=is_calibrated,
+                calibration_metadata=calib_str,
+                observations=payload.observations,
+                created_at=now,
+                updated_at=now,
+            )
+            saved = ScreeningRepository.create_acuity_assessment(db, assessment)
+            event_type = "ACUITY_ASSESSMENT_RECORDED"
+
+        # 6. Audit Telemetry
         audit = ScreeningAuditEvent(
             user_id=user.id,
             session_id=session_id,
-            event_type="ACUITY_ASSESSMENT_RECORDED",
-            occurred_at=datetime.now(UTC),
+            event_type=event_type,
+            occurred_at=now,
             metadata_json=json.dumps(
                 {
-                    "eye": payload.test_eye,
+                    "eye": canonical_eye,
+                    "type": canonical_type,
                     "snellen": payload.snellen_fraction,
-                    "logmar": payload.logmar,
+                    "logmar": logmar,
+                    "is_calibrated": is_calibrated,
                 }
             ),
         )
@@ -450,6 +519,52 @@ class ScreeningService:
 
         items = ScreeningRepository.list_acuity_assessments_for_session(db, session_id)
         return [VisualAcuityResponse.model_validate(i) for i in items]
+
+    @staticmethod
+    def get_visual_acuity_by_id(
+        db: Session,
+        user: User,
+        assessment_id: uuid.UUID,
+    ) -> VisualAcuityResponse:
+        """Retrieves a single visual acuity assessment enforcing ownership."""
+        assessment = ScreeningRepository.get_acuity_assessment_by_id(db, assessment_id)
+        if not assessment or assessment.user_id != user.id:
+            raise EntityNotFoundException("VisualAcuityAssessment", assessment_id)
+
+        return VisualAcuityResponse.model_validate(assessment)
+
+    @staticmethod
+    def list_visual_acuity_history(
+        db: Session,
+        user: User,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[VisualAcuityResponse], int]:
+        """Lists paginated historical visual acuity assessments for the user."""
+        items, total = ScreeningRepository.list_acuity_assessments_for_user(
+            db=db,
+            user_id=user.id,
+            limit=limit,
+            offset=offset,
+        )
+        return [VisualAcuityResponse.model_validate(i) for i in items], total
+
+    @staticmethod
+    def get_visual_acuity_session_summary(
+        db: Session,
+        user: User,
+        session_id: uuid.UUID,
+    ) -> VisualAcuitySummaryResponse:
+        """Generates a non-diagnostic visual acuity summary across distance and near tests for a session."""
+        session = ScreeningRepository.get_session_by_id(db, session_id)
+        if not session or session.user_id != user.id:
+            raise EntityNotFoundException("ScreeningSession", session_id)
+
+        items = ScreeningRepository.list_acuity_assessments_for_session(db, session_id)
+        summary_dict = VisualAcuityService.summarize_acuity_observations(
+            items, session_id=session.id
+        )
+        return VisualAcuitySummaryResponse.model_validate(summary_dict)
 
     # -------------------------------------------------------------------------
     # Astigmatism Screening Assessment (Phase 3.3)

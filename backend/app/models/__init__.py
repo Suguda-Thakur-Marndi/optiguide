@@ -4,6 +4,10 @@ All domain models are registered here for Alembic discovery and metadata reflect
 """
 
 from app.database.base import Base
+from app.models.adaptive_acuity import (
+    AdaptiveAcuityAttempt,
+    AdaptiveAcuityTest,
+)
 from app.models.catalog import (
     CatalogBrand,
     CatalogCategory,
@@ -11,6 +15,12 @@ from app.models.catalog import (
     InventoryTransaction,
     Shop,
     ShopInventory,
+)
+from app.models.online_screening import (
+    ScreeningCalibration,
+    ScreeningFinalReport,
+    ScreeningTestInstance,
+    ScreeningTestResponse,
 )
 from app.models.pd_assessment import PDAssessment
 from app.models.recommendation import (
@@ -36,6 +46,8 @@ from app.models.session import UserSession
 from app.models.user import User
 
 __all__ = [
+    "AdaptiveAcuityAttempt",
+    "AdaptiveAcuityTest",
     "AstigmatismAssessment",
     "Base",
     "CatalogBrand",
@@ -52,8 +64,12 @@ __all__ = [
     "RecommendationFeedback",
     "ReferralAuditEvent",
     "ScreeningAuditEvent",
+    "ScreeningCalibration",
     "ScreeningConsent",
+    "ScreeningFinalReport",
     "ScreeningSession",
+    "ScreeningTestInstance",
+    "ScreeningTestResponse",
     "Shop",
     "ShopInventory",
     "User",

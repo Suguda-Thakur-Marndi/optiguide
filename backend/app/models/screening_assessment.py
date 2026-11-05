@@ -43,6 +43,12 @@ class VisualAcuityAssessment(Base):
         nullable=False,
         index=True,  # 'right', 'left', 'both'
     )
+    assessment_type: Mapped[str] = mapped_column(
+        String(20),
+        default="DISTANCE",
+        nullable=False,
+        index=True,  # 'DISTANCE', 'NEAR'
+    )
     snellen_fraction: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -89,6 +95,12 @@ class VisualAcuityAssessment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OptiGuide Voice Assistant — Live Microphone Test</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 760px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background-color: #064e3b;
+      color: #6ee7b7;
+      margin-top: 0.25rem;
+      align-self: center;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .mic-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 0;
+    }
+
+    .mic-button {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      color: white;
+      font-size: 2.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 25px rgba(59, 130, 246, 0.4);
+      outline: none;
+    }
+
+    .mic-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 35px rgba(59, 130, 246, 0.6);
+    }
+
+    .mic-button.recording {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      animation: pulse 1.2s infinite;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.7);
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+      50% { transform: scale(1.08); box-shadow: 0 0 40px rgba(239, 68, 68, 0.8); }
+      100% { transform: scale(1); box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+    }
+
+    .mic-status {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .recording-timer {
+      font-size: 0.9rem;
+      color: #f87171;
+      font-weight: 700;
+      display: none;
+    }
+
+    .result-section {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .bubble {
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .user-bubble {
+      background-color: #1e3a8a;
+      border-left: 4px solid #60a5fa;
+    }
+
+    .bot-bubble {
+      background-color: #14532d;
+      border-left: 4px solid #4ade80;
+    }
+
+    .bubble-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+      color: var(--text-muted);
+    }
+
+    .user-bubble .bubble-title { color: #93c5fd; }
+    .bot-bubble .bubble-title { color: #86efac; }
+
+    .intent-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background-color: #312e81;
+      color: #c7d2fe;
+      margin-top: 0.5rem;
+      font-weight: 600;
+    }
+
+    audio {
+      width: 100%;
+      margin-top: 0.5rem;
+      border-radius: 6px;
+    }
+
+    .disclaimer {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      border-top: 1px dashed var(--border);
+      padding-top: 0.75rem;
+      font-style: italic;
+    }
+
+    .quick-test {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .quick-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip-btn {
+      background-color: var(--border);
+      color: var(--text);
+      border: 1px solid #475569;
+      border-radius: 9999px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chip-btn:hover {
+      background-color: #475569;
+      border-color: #64748b;
+    }
+
+    .spinner {
+      display: none;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0.5rem auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>OptiGuide Voice Assistant</h1>
+      <p class="subtitle">Live Microphone Speech Recognition & Clinical Guidance Dialogue</p>
+      <div class="badge-status">
+        <span class="badge-dot"></span>
+        Backend Live at http://127.0.0.1:8000
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="mic-section">
+        <button id="micBtn" class="mic-button" title="Click to start recording">🎙️</button>
+        <div id="micStatus" class="mic-status">Click microphone to speak</div>
+        <div id="recordingTimer" class="recording-timer">● Recording... <span id="timerCount">0</span>s</div>
+        <div id="spinner" class="spinner"></div>
+      </div>
+
+      <div id="resultSection" class="result-section">
+        <div class="bubble user-bubble">
+          <div class="bubble-title">What You Said (Speech-to-Text)</div>
+          <div id="transcriptionText" style="font-weight: 600; font-size: 1.05rem;"></div>
+          <div id="intentTag" class="intent-tag"></div>
+        </div>
+
+        <div class="bubble bot-bubble">
+          <div class="bubble-title">OptiGuide Response (AI Guidance)</div>
+          <div id="responseText"></div>
+          <audio id="audioPlayer" controls autoplay></audio>
+        </div>
+
+        <div id="disclaimerText" class="disclaimer"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="quick-test">
+        <span class="quick-title">Or test with preset questions:</span>
+        <div class="quick-buttons">
+          <button class="chip-btn" onclick="sendPresetText('Hello OptiGuide, I want to start my vision screening')">Start Screening</button>
+          <button class="chip-btn" onclick="sendPresetText('How does the visual acuity optotype test work?')">Visual Acuity</button>
+          <button class="chip-btn" onclick="sendPresetText('Explain the astigmatism clock dial test')">Astigmatism Dial</button>
+          <button class="chip-btn" onclick="sendPresetText('How does the Ishihara color vision test work?')">Color Vision</button>
+          <button class="chip-btn" onclick="sendPresetText('What is pupillary distance and how is it measured?')">Pupillary Distance</button>
+          <button class="chip-btn" onclick="sendPresetText('Can you recommend glasses for my face shape?')">Eyewear Frame</button>
+          <button class="chip-btn" onclick="sendPresetText('I have sudden severe eye pain and loss of vision')">Emergency Triage</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND_URL = "http://127.0.0.1:8000";
+    const CHAT_URL = `${BACKEND_URL}/api/v1/voice/chat`;
+
+    const micBtn = document.getElementById("micBtn");
+    const micStatus = document.getElementById("micStatus");
+    const timerElem = document.getElementById("recordingTimer");
+    const timerCount = document.getElementById("timerCount");
+    const spinner = document.getElementById("spinner");
+
+    const resultSection = document.getElementById("resultSection");
+    const transcriptionText = document.getElementById("transcriptionText");
+    const intentTag = document.getElementById("intentTag");
+    const responseText = document.getElementById("responseText");
+    const audioPlayer = document.getElementById("audioPlayer");
+    const disclaimerText = document.getElementById("disclaimerText");
+
+    let isRecording = false;
+    let audioContext = null;
+    let mediaStream = null;
+    let audioInput = null;
+    let scriptProcessor = null;
+    let audioBuffers = [];
+    let timerInterval = null;
+    let secondsRecorded = 0;
+
+    micBtn.addEventListener("click", () => {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+
+    async function startRecording() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        audioInput = audioContext.createMediaStreamSource(mediaStream);
+        
+        // Use 4096 buffer size
+        scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        audioBuffers = [];
+
+        scriptProcessor.onaudioprocess = (e) => {
+          if (!isRecording) return;
+          const channelData = e.inputBuffer.getChannelData(0);
+          audioBuffers.push(new Float32Array(channelData));
+        };
+
+        audioInput.connect(scriptProcessor);
+        scriptProcessor.connect(audioContext.destination);
+
+        isRecording = true;
+        micBtn.classList.add("recording");
+        micBtn.innerText = "⏹️";
+        micStatus.innerText = "Listening... Click to stop speaking";
+        timerElem.style.display = "block";
+        secondsRecorded = 0;
+        timerCount.innerText = secondsRecorded;
+
+        timerInterval = setInterval(() => {
+          secondsRecorded++;
+          timerCount.innerText = secondsRecorded;
+          if (secondsRecorded >= 15) {
+            stopRecording();
+          }
+        }, 1000);
+
+      } catch (err) {
+        console.error("Microphone error:", err);
+        alert("Microphone permission denied or microphone not found. Please allow microphone access in your browser.");
+        micStatus.innerText = "Microphone access denied.";
+      }
+    }
+
+    async function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      clearInterval(timerInterval);
+
+      micBtn.classList.remove("recording");
+      micBtn.innerText = "🎙️";
+      micStatus.innerText = "Recognizing speech and generating response...";
+      timerElem.style.display = "none";
+      spinner.style.display = "block";
+
+      if (scriptProcessor) scriptProcessor.disconnect();
+      if (audioInput) audioInput.disconnect();
+      if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+
+      // Merge buffers
+      let totalLength = audioBuffers.reduce((acc, b) => acc + b.length, 0);
+      let merged = new Float32Array(totalLength);
+      let offset = 0;
+      for (let buf of audioBuffers) {
+        merged.set(buf, offset);
+        offset += buf.length;
+      }
+
+      // Encode to 16-bit PCM WAV at 16000 Hz
+      const wavBlob = encodeWAV(merged, 16000);
+      await sendAudioToBackend(wavBlob);
+    }
+
+    function encodeWAV(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+
+      // RIFF identifier
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeString(view, 8, 'WAVE');
+      // format chunk identifier
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // length = 16
+      view.setUint16(20, 1, true); // PCM format
+      view.setUint16(22, 1, true); // mono channel
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // byte rate (sampleRate * 1 * 2)
+      view.setUint16(32, 2, true); // block align
+      view.setUint16(34, 16, true); // bits per sample
+      // data chunk identifier
+      writeString(view, 36, 'data');
+      view.setUint32(40, samples.length * 2, true);
+
+      // Write PCM samples
+      let index = 44;
+      for (let i = 0; i < samples.length; i++) {
+        let s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        index += 2;
+      }
+
+      return new Blob([view], { type: 'audio/wav' });
+    }
+
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+
+    async function sendAudioToBackend(wavBlob) {
+      try {
+        const formData = new FormData();
+        formData.append("file", wavBlob, "recording.wav");
+
+        const response = await fetch(CHAT_URL, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        renderResponse(data);
+      } catch (err) {
+        console.error("Transmission error:", err);
+        alert("Failed to communicate with backend: " + err.message);
+      } finally {
+        spinner.style.display = "none";
+        micStatus.innerText = "Click microphone to speak";
+      }
+    }
+
+    async function sendPresetText(preset) {
+      spinner.style.display = "block";
+      micStatus.innerText = "Processing text query...";
+
+      try {
+        const formData = new FormData();
+        formData.append("text", preset);
+
+        const response = await fetch(CHAT_URL, {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        renderResponse(data);
+      } catch (err) {
+        console.error("Transmission error:", err);
+        alert("Failed to communicate with backend: " + err.message);
+      } finally {
+        spinner.style.display = "none";
+        micStatus.innerText = "Click microphone to speak";
+      }
+    }
+
+    function renderResponse(data) {
+      resultSection.style.display = "flex";
+      transcriptionText.innerText = `"${data.transcription}"`;
+      intentTag.innerText = `Intent: ${data.intent} (Confidence: ${data.confidence ?? '1.0'})`;
+      responseText.innerText = data.response_text;
+      disclaimerText.innerText = data.clinical_disclaimer;
+
+      if (data.audio_base64) {
+        audioPlayer.src = `data:${data.audio_format};base64,${data.audio_base64}`;
+        audioPlayer.play().catch(e => console.log("Auto-play blocked by browser, user can click play:", e));
+      }
+    }
+  </script>
+</body>
+</html>

@@ -70,6 +70,7 @@ def clean_test_state():
 @pytest.fixture(scope="session")
 def app():
     settings.APP_ENV = "test"
+    settings.APP_DEBUG = False
     application = create_application()
     application.dependency_overrides[get_db] = override_get_db
     application.dependency_overrides[get_database] = override_get_db
