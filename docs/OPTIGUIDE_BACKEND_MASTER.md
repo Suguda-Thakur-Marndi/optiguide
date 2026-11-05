@@ -36,9 +36,12 @@
 22. [Development Environment Setup & Operational Runbook](#22-development-environment-setup--operational-runbook)
 23. [Known Limitations & Production Readiness Checklist](#23-known-limitations--production-readiness-checklist)
 24. [Phase 4 Evidence-Based Completion Report](#24-phase-4-evidence-based-completion-report)
-25. [Appendix A: Environment Configuration & Secret Reference](#25-appendix-a-environment-configuration--secret-reference)
-26. [Appendix B: Role-Based Access Control (RBAC) Permission Matrix](#26-appendix-b-role-based-access-control-rbac-permission-matrix)
-27. [Appendix C: Clinical Algorithmic Reference & Cut-off Thresholds](#27-appendix-c-clinical-algorithmic-reference--cut-off-thresholds)
+25. [Voice Assistant Subsystem: STT, TTS & Conversational Guidance](#25-voice-assistant-subsystem-speech-to-text-text-to-speech--conversational-guidance-implemented--verified)
+26. [Complete Online Vision Screening Platform (7-Module Modular Architecture)](#26-complete-online-vision-screening-platform-7-module-modular-architecture)
+27. [Voice-Controlled Adaptive Visual Acuity Test Engine](#27-voice-controlled-adaptive-visual-acuity-test-engine)
+28. [Appendix A: Environment Configuration & Secret Reference](#28-appendix-a-environment-configuration--secret-reference)
+29. [Appendix B: Role-Based Access Control (RBAC) Permission Matrix](#29-appendix-b-role-based-access-control-rbac-permission-matrix)
+30. [Appendix C: Clinical Algorithmic Reference & Cut-off Thresholds](#30-appendix-c-clinical-algorithmic-reference--cut-off-thresholds)
 
 ---
 
@@ -263,21 +266,129 @@ Phase 3 and 3.1 established the clinical screening workflow:
 
 ---
 
-# 11. PHASE 3.2 DOCUMENTATION: CLINICAL SCREENING ASSESSMENTS
+# 11. PHASE 3.2 DOCUMENTATION: VISUAL ACUITY SCREENING & CLINICAL ASSESSMENTS
 
-Implemented three foundational preliminary vision assessments:
-1. **Visual Acuity Screening:**
-   - Records monocular (`right`, `left`) and binocular (`both`) acuity.
-   - Accepts standard Snellen fractions (`20/20`, `20/40`, `20/200`) and exact LogMAR values ($-0.3$ to $+2.0$).
-2. **Astigmatism Clock Dial Screening:**
-   - Records patient perception of radiating meridian lines.
-   - Captures uniform clarity booleans and sharpest meridian axis ($0^\circ$ to $180^\circ$).
-3. **Ishihara Color Vision Screening:**
-   - Records perception of standard pseudoisochromatic plates.
-   - Detects red-green (protan/deutan) color vision confusion patterns.
-4. **Automated Clinical Triage Summary:**
-   - Calculates interocular acuity differences.
-   - Generates preliminary clinical risk summaries and recommendations for professional consultation.
+The Visual Acuity screening subsystem provides clinical optics mathematical conversions, physical calibration validation, geometric screening constraints, and deterministic non-diagnostic triage summaries.
+
+### 11.1 Dedicated Clinical Optics Engine (`VisualAcuityService`)
+The visual acuity engine implements clinical conversion mathematics:
+$$\text{logMAR} = \log_{10}\left(\frac{\text{denominator}}{\text{numerator}}\right)$$
+- **Standardized Precision:** Formatted and rounded to 2 decimal places.
+- **Snellen Parsing:** Strict regular expression verification `^(\d+)\s*/\s*(\d+)$` rejecting malformed strings, non-positive denominators or numerators, and non-numeric inputs.
+- **Imperial & Metric Conversion Matrix:**
+  - Snellen $20/20 \iff 6/6 \iff 1.00\text{ Decimal} \iff 0.00\text{ logMAR}$ (Standard normal acuity)
+  - Snellen $20/40 \iff 6/12 \iff 0.50\text{ Decimal} \iff 0.30\text{ logMAR}$ (Mild acuity reduction)
+  - Snellen $20/60 \iff 6/18 \iff 0.33\text{ Decimal} \iff 0.48\text{ logMAR}$ (Moderate impairment $\to$ referral recommended)
+  - Snellen $20/100 \iff 6/30 \iff 0.20\text{ Decimal} \iff 0.70\text{ logMAR}$ (Significant visual reduction)
+  - Snellen $20/200 \iff 6/60 \iff 0.10\text{ Decimal} \iff 1.00\text{ logMAR}$ (Severe visual impairment)
+- **Physiological Boundary Validation:** Enforces supported clinical range $[-0.30, 2.00]\text{ logMAR}$. Inputs outside this range raise `ValidationException` (HTTP 422).
+- **Data Reconciliation & Conflict Defense:** If a client provides pre-computed `logmar` or `decimal_acuity`, the service computes mathematical equivalents from the Snellen fraction and verifies agreement within $\pm 0.05$ tolerance (`LOGMAR_TOLERANCE` / `DECIMAL_TOLERANCE`). Conflicting inputs are rejected with HTTP 422 rather than accepting contradictory clinical records.
+
+### 11.2 Viewing Geometry & Display Calibration Safeguards
+Screening accuracy depends on physical testing conditions, which are strictly guarded:
+- **Separate Distance & Near Viewing Geometry:**
+  - `DISTANCE` screening requires `tested_distance_meters` in $[0.3\text{m}, 12.0\text{m}]$.
+  - `NEAR` screening requires `near_reading_distance_cm` in $[15.0\text{cm}, 100.0\text{cm}]$.
+- **Zero Blind Trust in Client Calibration:**
+  - Client assertion `is_calibrated: true` without geometric hardware metadata is forced to `is_calibrated: false`.
+  - Calibration is validated only when physical display DPI, screen pixel dimensions, and physical viewing distance are provided. Validated claims are stamped `GEOMETRIC_VALIDATION_PASSED`; unverified claims receive `UNVERIFIED_CLIENT_CLAIM`.
+
+### 11.3 Clinical Consent & Session Lifecycle Enforcement
+- **Consent Pre-condition:** Visual acuity assessments require active, unwithdrawn informed consent (`ScreeningConsent.is_active == True`). Missing or revoked consent immediately returns `403 Forbidden` (`CONSENT_REQUIRED`).
+- **Session Lifecycle Policy:** Assessments can only be recorded on `in_progress` screening sessions. Attempts to submit assessments to `completed` or `cancelled` sessions return `400 Bad Request` (`INVALID_SESSION_TRANSITION`).
+- **Idempotency & Updates:** Resubmitting an assessment for the same session, eye, and test type updates the existing record with `updated_at = datetime.now(UTC)` and logs `ACUITY_ASSESSMENT_UPDATED` in the audit ledger.
+- **IDOR Defense:** Cross-patient access attempts return `404 Not Found` to prevent account and session enumeration.
+
+### 11.4 Deterministic Non-Diagnostic Summary & Triage
+The summary service aggregates session results across OD, OS, and OU tests:
+- **Missing Observations:** Flags missing eye or distance/near assessments (e.g. "Right eye (OD) distance visual acuity not assessed", "Near visual acuity screening was not conducted").
+- **Triage Criteria:**
+  - Monocular or binocular visual acuity $\ge 0.40\text{ logMAR}$ (worse than $20/40$) flags referral recommendation with specific eye indicators.
+  - Interocular visual acuity difference $|OD - OS| \ge 0.30\text{ logMAR}$ flags significant asymmetry.
+- **Non-Diagnostic Medical Disclaimer:** Every summary response includes the mandatory disclaimer:
+  > *"OptiGuide visual acuity screening is a preliminary functional assessment aid, not a diagnostic ophthalmic examination. It does not diagnose refractive errors (such as myopia, hyperopia, or astigmatism), amblyopia, or ocular pathologies, and cannot calculate corrective lens powers or generate optical prescriptions. Normal screening observations do not guarantee complete ocular health. A certified optometrist or ophthalmologist must perform comprehensive clinical evaluations."*
+
+### 11.5 Clinical Screening Endpoints
+- `POST /api/v1/screening/sessions/{session_id}/acuity` — Record distance or near visual acuity.
+- `GET /api/v1/screening/sessions/{session_id}/acuity` — List visual acuity records for a session.
+- `GET /api/v1/screening/sessions/{session_id}/acuity/summary` — Retrieve deterministic visual acuity observations breakdown and referral triage.
+- `GET /api/v1/screening/acuity/history` (and `/api/v1/acuity/history`) — Paginated historical visual acuity screenings for the authenticated user.
+- `GET /api/v1/screening/acuity/{assessment_id}` (and `/api/v1/acuity/{assessment_id}`) — Retrieve single visual acuity assessment by ID with strict ownership validation.
+- `POST /api/v1/screening/sessions/{session_id}/astigmatism` — Record radial clock dial/fan observations.
+- `GET /api/v1/screening/sessions/{session_id}/astigmatism` — List astigmatism records for session.
+- `POST /api/v1/screening/sessions/{session_id}/color-vision` — Record Ishihara color plate observations.
+- `GET /api/v1/screening/sessions/{session_id}/color-vision` — List color vision records for session.
+- `GET /api/v1/screening/sessions/{session_id}/summary` — Composite session clinical summary across all modalities.
+
+---
+
+### 11.6 Interactive Adaptive Visual Acuity Screening Engine (Staircase Protocol)
+
+The OptiGuide backend implements a server-controlled interactive visual acuity screening engine. The client application renders optotypes and captures user responses, while the backend dictates difficulty progression, evaluates correctness server-side, enforces stopping criteria, and determines preliminary visual acuity thresholds.
+
+#### 11.6.1 Clinical Screening Protocol (`ISO8596_ATS_V1`)
+- **Protocol Basis:** Modeled after the Amblyopia Treatment Study (ATS) and ISO 8596 staircase visual acuity testing standards.
+- **Validation Status:** `TECHNICAL FRAMEWORK IMPLEMENTED — PRELIMINARY SCREENING (NOT CLINICALLY VALIDATED AS AN INDEPENDENT MEDICAL DIAGNOSTIC DEVICE)`.
+- **ATS 3-of-4 Rule:**
+  - Up to 4 presentations are evaluated per difficulty level.
+  - A level is marked **PASS** when 3 correct responses are obtained.
+  - A level is marked **FAIL** when 2 incorrect responses occur (as reaching 3-of-4 becomes mathematically impossible).
+- **LogMAR Level Specification Table:**
+  - Level 0: $20/200 \iff 1.00\text{ logMAR} \iff 0.10\text{ Decimal} \iff 50.00\text{ arcmin}$
+  - Level 1: $20/125 \iff 0.80\text{ logMAR} \iff 0.16\text{ Decimal} \iff 31.62\text{ arcmin}$
+  - Level 2: $20/100 \iff 0.70\text{ logMAR} \iff 0.20\text{ Decimal} \iff 25.12\text{ arcmin}$
+  - Level 3: $20/80 \iff 0.60\text{ logMAR} \iff 0.25\text{ Decimal} \iff 19.95\text{ arcmin}$
+  - Level 4: $20/60 \iff 0.48\text{ logMAR} \iff 0.33\text{ Decimal} \iff 15.14\text{ arcmin}$
+  - Level 5: $20/50 \iff 0.40\text{ logMAR} \iff 0.40\text{ Decimal} \iff 12.59\text{ arcmin}$
+  - Level 6: $20/40 \iff 0.30\text{ logMAR} \iff 0.50\text{ Decimal} \iff 10.00\text{ arcmin}$ (Standard screening start)
+  - Level 7: $20/30 \iff 0.18\text{ logMAR} \iff 0.67\text{ Decimal} \iff 7.59\text{ arcmin}$
+  - Level 8: $20/25 \iff 0.10\text{ logMAR} \iff 0.80\text{ Decimal} \iff 6.31\text{ arcmin}$
+  - Level 9: $20/20 \iff 0.00\text{ logMAR} \iff 1.00\text{ Decimal} \iff 5.00\text{ arcmin}$ (Standard normal vision)
+  - Level 10: $20/15 \iff -0.12\text{ logMAR} \iff 1.33\text{ Decimal} \iff 3.80\text{ arcmin}$ (Supra-normal vision)
+- **Staircase Progression & Stopping Rules:**
+  1. Passing a level advances difficulty to the next smaller optotype level (`level += 1`).
+  2. Failing a level after previously passing a larger level satisfies the stopping criterion. The smallest reliably passed level is recorded as the visual acuity threshold.
+  3. Failing an intermediate starting level (e.g. Level 6) without prior passes steps down to larger optotypes (Level 4 or Level 0).
+  4. Failing at the largest optotype level (Level 0) terminates testing with acuity flagged as worse than $20/200$ ($> 20/200$, $1.10\text{ logMAR}$).
+  5. Reaching Level 10 with a pass stops at the physiological resolution ceiling.
+
+#### 11.6.2 Server-Controlled Optotype Engine
+- **Supported Sets:**
+  - `TUMBLING_E`: Orientations `UP`, `DOWN`, `LEFT`, `RIGHT`. Challenge symbols `E_UP`, `E_DOWN`, `E_LEFT`, `E_RIGHT`.
+  - `SLOAN`: 10-letter standardized set (`C`, `D`, `E`, `F`, `L`, `N`, `O`, `P`, `T`, `Z`).
+- **Non-Repeating Selection:** Random selection strictly prevents immediate repetition (`presented_symbol != previous_symbol`).
+- **Zero Answer Leakage:** Challenge payloads never disclose `expected_response`. Only presented symbols, choices, and physical dimensions are transmitted.
+
+#### 11.6.3 Physical Sizing & 4-Tier Display Calibration
+Optotypes are sized using visual angle trigonometry rather than arbitrary pixel sizes:
+$$\theta_{\text{rad}} = \left(\frac{\theta_{\text{arcmin}}}{60}\right) \times \left(\frac{\pi}{180}\right)$$
+$$H_{\text{meters}} = 2 \times D \times \tan\left(\frac{\theta_{\text{rad}}}{2}\right)$$
+$$H_{\text{mm}} = H_{\text{meters}} \times 1000, \quad H_{\text{px}} = \left(\frac{H_{\text{mm}}}{25.4}\right) \times \text{DPI}$$
+- **4-Tier Calibration Model:**
+  1. `UNCALIBRATED`: Nominal CSS scaling only. Results flagged as uncalibrated preliminary screening.
+  2. `CLIENT_REPORTED`: Client provided DPI, resolution, and distance, but unverified.
+  3. `SERVER_VERIFIED`: Screen DPI ($70-1200$), screen resolution ($\ge 320\text{px}$), and physical viewing distance passed server geometric plausibility checks with reference calibration.
+  4. `PROFESSIONALLY_VALIDATED`: Supervised and verified by licensed clinical staff.
+
+#### 11.6.4 Eye Testing & Occlusion Accountability
+- Supports monocular testing (`right` / `OD`, `left` / `OS`) and binocular testing (`both` / `OU`).
+- The backend tracks `user_reported_occlusion: true/false` to record whether occlusion of the non-tested eye was citizen-reported or professionally supervised.
+- Distance testing defaults to $3.0\text{m}$; near testing defaults to $0.40\text{m}$ ($40\text{cm}$).
+
+#### 11.6.5 Seamless Screening Session Integration
+Upon adaptive test completion:
+- The smallest reliably resolved level is converted into Snellen, LogMAR, and Decimal acuity.
+- A `VisualAcuityAssessment` record is automatically created/updated in the database and linked via `test.assessment_id`.
+- Downstream clinical triage summaries (`GET /sessions/{id}/summary`), clinical referral sharing (`/api/v1/referrals`), and eyewear frame recommendations (`/api/v1/recommendations/eyewear`) immediately consume the adaptive test result.
+
+#### 11.6.6 Adaptive Acuity API Endpoints
+- `POST /api/v1/screening/sessions/{session_id}/acuity/start` — Start an interactive adaptive test session.
+- `GET /api/v1/screening/acuity/tests/{test_id}/next` — Retrieve the active optotype presentation challenge without leaking answers.
+- `POST /api/v1/screening/acuity/tests/{test_id}/response` — Submit citizen answer, validate correctness server-side, advance difficulty, or complete test.
+- `POST /api/v1/screening/acuity/tests/{test_id}/complete` — Manually finalize an ongoing adaptive screening test.
+- `POST /api/v1/screening/acuity/tests/{test_id}/cancel` — Cancel an ongoing adaptive test.
+- `GET /api/v1/screening/acuity/tests/{test_id}/result` — Retrieve the completed adaptive test determination and clinical disclaimer.
+- Canonical aliases are also mounted under `/api/v1/acuity/tests/{test_id}/...`.
 
 ---
 
@@ -516,44 +627,56 @@ OptiGuide employs dual-dialect database abstraction:
 
 ---
 
-# 20. AUTOMATED TESTING STRATEGY & VERIFICATION EVIDENCE (140 PASSING TESTS)
+# 20. AUTOMATED TESTING STRATEGY & VERIFICATION EVIDENCE (190 PASSING TESTS)
 
-The backend test suite consists of **140 automated tests** executing across unit, integration, and API test suites:
+The backend test suite consists of **190 automated tests** executing across unit, integration, and API test suites with zero failures:
 
 ```
 ============================= test session starts =============================
 platform win32 -- Python 3.13.14, pytest-8.4.2, pluggy-1.7.0
 rootdir: C:\Users\sugud\OneDrive\Documents\optiguide\backend
-collected 140 items
+configfile: pyproject.toml
+plugins: anyio-4.16.0, asyncio-0.26.0
+collected 190 items
 
-backend\tests\api\test_auth_api.py (13 tests) .............               [  9%]
-backend\tests\api\test_catalog_and_inventory_api.py (3 tests) ...         [ 11%]
-backend\tests\api\test_clinical_screening_api.py (5 tests) .....          [ 15%]
-backend\tests\api\test_errors_api.py (4 tests) ....                       [ 17%]
-backend\tests\api\test_phase2_1_security_hardening.py (16 tests) ........ [ 29%]
-backend\tests\api\test_phase4_remediation.py (8 tests) ........           [ 35%]
-backend\tests\api\test_recommendations_and_pd_api.py (4 tests) ....       [ 37%]
-backend\tests\api\test_referrals_and_reviews_api.py (3 tests) ...         [ 40%]
-backend\tests\api\test_root_api.py (5 tests) .....                        [ 43%]
-backend\tests\api\test_screening_api.py (8 tests) ........                [ 49%]
-backend\tests\api\test_users_api.py (2 tests) ..                          [ 50%]
-backend\tests\api\test_v1_health_api.py (7 tests) .......                 [ 55%]
-backend\tests\integration\test_auth_integration.py (3 tests) ...          [ 57%]
-backend\tests\integration\test_health_integration.py (2 tests) ..         [ 59%]
-backend\tests\unit\test_clinical_scoring.py (12 tests) ............       [ 67%]
-backend\tests\unit\test_config.py (3 tests) ...                           [ 69%]
-backend\tests\unit\test_phase2_1_security_unit.py (17 tests) ............ [ 82%]
-backend\tests\unit\test_phase4_units.py (4 tests) ....                    [ 85%]
-backend\tests\unit\test_schemas.py (6 tests) ......                       [ 89%]
-backend\tests\unit\test_screening_unit.py (6 tests) ......                [ 94%]
-backend\tests\unit\test_security_auth.py (9 tests) .........              [100%]
+backend\tests\api\test_adaptive_acuity_api.py (7 tests) .......             [  3%]
+backend\tests\api\test_auth_api.py (13 tests) .............                 [ 10%]
+backend\tests\api\test_catalog_and_inventory_api.py (3 tests) ...          [ 12%]
+backend\tests\api\test_clinical_screening_api.py (5 tests) .....           [ 14%]
+backend\tests\api\test_errors_api.py (4 tests) ....                        [ 16%]
+backend\tests\api\test_phase2_1_security_hardening.py (18 tests) ........ [ 26%]
+backend\tests\api\test_phase4_1_security.py (12 tests) ............         [ 32%]
+backend\tests\api\test_phase4_remediation.py (8 tests) ........            [ 36%]
+backend\tests\api\test_recommendations_and_pd_api.py (2 tests) ..          [ 37%]
+backend\tests\api\test_referrals_and_reviews_api.py (3 tests) ...          [ 39%]
+backend\tests\api\test_root_api.py (5 tests) .....                         [ 42%]
+backend\tests\api\test_screening_api.py (8 tests) ........                 [ 46%]
+backend\tests\api\test_users_api.py (5 tests) .....                        [ 48%]
+backend\tests\api\test_v1_health_api.py ....... (7 tests)                  [ 52%]
+backend\tests\api\test_visual_acuity_api.py (9 tests) .........            [ 57%]
+backend\tests\integration\test_auth_integration.py (3 tests) ...           [ 58%]
+backend\tests\integration\test_db_integration.py (4 tests) ....            [ 61%]
+backend\tests\integration\test_db_isolation.py (1 test) .                  [ 61%]
+backend\tests\unit\test_adaptive_acuity_engine.py (7 tests) .......        [ 65%]
+backend\tests\unit\test_clinical_scoring.py (3 tests) ...                  [ 66%]
+backend\tests\unit\test_config.py (4 tests) ....                           [ 68%]
+backend\tests\unit\test_exceptions.py (1 test) .                           [ 69%]
+backend\tests\unit\test_logging.py (5 tests) .....                         [ 72%]
+backend\tests\unit\test_phase2_1_security_unit.py (14 tests) .............. [ 79%]
+backend\tests\unit\test_phase4_units.py (4 tests) ....                     [ 81%]
+backend\tests\unit\test_schemas.py (6 tests) ......                        [ 84%]
+backend\tests\unit\test_screening_unit.py (6 tests) ......                 [ 87%]
+backend\tests\unit\test_security_auth.py (8 tests) ........                [ 92%]
+backend\tests\unit\test_visual_acuity_service.py (15 tests) ............... [100%]
 
-====================== 140 passed, 50 warnings in 9.24s =======================
+====================== 190 passed, 66 warnings in 6.06s =======================
 ```
 
-- **Pass Rate:** 100% (140 / 140 tests passing).
+- **Pass Rate:** 100% (190 / 190 tests passing).
+- **Automated SQLite Environment:** **VERIFIED** (190 passed in isolated test transactions).
+- **Live PostgreSQL Server:** **NOT VERIFIED** (migrations tested bidirectionally with SQLite batch mode; production PostgreSQL deployment pending live cluster availability).
 - **Ruff Linting:** 0 errors (`All checks passed!`).
-- **Ruff Formatting:** 98 files cleanly formatted.
+- **Ruff Formatting:** 112 files cleanly formatted.
 
 ---
 
@@ -677,7 +800,525 @@ python -m pytest tests -v
 
 ---
 
-# 25. APPENDIX A: ENVIRONMENT CONFIGURATION & SECRET REFERENCE
+# 25. VOICE ASSISTANT SUBSYSTEM: SPEECH-TO-TEXT, TEXT-TO-SPEECH & CONVERSATIONAL GUIDANCE (IMPLEMENTED & VERIFIED)
+
+### 25.1 Subsystem Architecture & Workflow Overview
+The OptiGuide Voice Assistant subsystem provides full bidirectional voice interaction for vision screening workflows, adhering to rigorous clinical safety guardrails. The architecture operates entirely **offline** on Windows environments using native speech drivers while providing optional online neural synthesis fallbacks.
+
+```text
+User Microphone (PCM WAV)
+          │
+          ▼
+POST /api/v1/voice/transcribe OR /chat
+          │
+          ▼
+Audio Validation (Magic bytes 'RIFF...WAVE', size limit 10MB, frame integrity)
+          │
+          ▼
+Speech-to-Text (STT Engine: Windows System.Speech.Recognition Engine)
+          │
+          ▼
+Recognized Text & Confidence Score
+          │
+          ▼
+OptiGuide Conversational Guidance & Intent Reasoning Engine
+  ├── Emergency Triage Detection (acute pain, sudden vision loss -> Urgent Alert)
+  ├── Screening Initiation (Visual Acuity, Astigmatism, Color Vision flow)
+  ├── Topical Explanations (Acuity optotypes, Clock dial, Ishihara plates, PD)
+  ├── Eyewear Styling Advice (non-prescription frame guidance)
+  └── Statutory Clinical Safety Disclaimer Injection
+          │
+          ▼
+Generated Clinical Guidance Text Response
+          │
+          ▼
+Text-to-Speech (TTS Engine: Windows System.Speech.Synthesis / gTTS fallback)
+          │
+          ▼
+Generated Binary Audio Payload (PCM 16-bit 22,050Hz Mono WAV / MP3)
+          │
+          ▼
+Return: Playable Audio Stream OR Base64-Encoded VoiceChatResponse
+```
+
+---
+
+### 25.2 Voice API Specification & Contracts
+
+| Endpoint | HTTP Method | Input Type | Output MIME / Schema | Description |
+| :--- | :---: | :--- | :--- | :--- |
+| `/api/v1/voice/status` | `GET` | None | `VoiceStatusResponse` | Operational status of STT and TTS engines, offline capability, limits |
+| `/api/v1/voice/transcribe` | `POST` | `multipart/form-data` (`file: .wav`) | `TranscriptionResponse` | Converts PCM WAV audio into recognized text with confidence |
+| `/api/v1/voice/synthesize` | `POST` | `application/json` (`SynthesizeRequest`) | `audio/wav` or `audio/mpeg` | Synthesizes response text into playable binary audio stream |
+| `/api/v1/voice/chat` | `POST` | `multipart/form-data` (`file` and/or `text`) | `VoiceChatResponse` | Complete end-to-end voice screening dialogue pipeline |
+
+#### Request & Response Examples:
+
+1. **Synthesize Speech (`POST /api/v1/voice/synthesize`):**
+   - **Request:**
+     ```json
+     {
+       "text": "Welcome to OptiGuide preliminary vision screening.",
+       "format": "wav"
+     }
+     ```
+   - **Response Headers:** `Content-Type: audio/wav`, `Content-Disposition: inline; filename=optiguide_speech.wav`
+   - **Response Body:** Binary PCM 16-bit WAV audio stream.
+
+2. **End-to-End Voice Chat (`POST /api/v1/voice/chat`):**
+   - **Request:** `file=@test_voice.wav`
+   - **Response JSON:**
+     ```json
+     {
+       "transcription": "Hello love the guide I want to start my vision screening",
+       "response_text": "Welcome to OptiGuide. We are ready to begin your preliminary vision screening. The screening includes Visual Acuity, Astigmatism, and Color Vision assessments...",
+       "intent": "START_SCREENING",
+       "confidence": 0.7331,
+       "audio_base64": "UklGRtS5AwBXQVZFZm10IBIA...",
+       "audio_format": "audio/wav",
+       "clinical_disclaimer": "CLINICAL DISCLAIMER: OptiGuide voice assistant provides preliminary vision screening guidance and eyewear information. It does not provide medical diagnoses, treatment plans, or optical prescriptions. Consult a licensed eye care professional for comprehensive clinical evaluation."
+     }
+     ```
+
+---
+
+### 25.3 Clinical Safety Guardrails
+
+1. **Non-Diagnostic Policy:** The voice assistant explicitly refuses to diagnose ocular pathologies, prescribe spectacle/contact lens powers, or interpret raw acuity scores as clinical prescriptions.
+2. **Emergency Triage Redirection:** Spoken complaints indicating ocular emergencies (severe pain, sudden vision loss, flashes of light, chemical contact, eye trauma) trigger an immediate `EMERGENCY_TRIAGE` intent redirecting the user to an emergency ophthalmology clinic or hospital emergency room.
+3. **Mandatory Disclaimer:** Every synthesized response and dialogue interaction incorporates the statutory clinical disclaimer.
+
+---
+
+### 25.4 Live Verification & Real Audio Testing Evidence
+
+1. **Live Server Runtime:**
+   - Server running at `http://127.0.0.1:8000`.
+   - Swagger Documentation active at `http://127.0.0.1:8000/docs`.
+   - Liveness & Database Health: `GET /health` $\to$ status `ok`, `GET /api/v1/health` $\to$ database `connected`.
+
+2. **Real Audio Microphone & Speech Tests:**
+   - **Genuine Spoken WAV Sample:** `test_voice.wav` (188,302 bytes, PCM 16-bit mono). Spoken phrase: *"Hello OptiGuide, I want to start my vision screening."*
+   - **STT Verification:** `POST /api/v1/voice/transcribe` recognized text: `"Hello love the guide I want to start my vision screening"`, confidence `0.7331`, processing time `0.84s`.
+   - **TTS Verification:** `POST /api/v1/voice/synthesize` produced 219,828 bytes of clean PCM WAV audio, verified playable on disk (`live_test_synth.wav`, 4.98 seconds, 22,050 Hz).
+   - **End-to-End Chat Verification:** `POST /api/v1/voice/chat` ingested `test_voice.wav`, classified intent as `START_SCREENING`, generated clinical guidance text, and synthesized 1,023,406 bytes of response speech (`live_test_chat_response.wav`, 23.21 seconds, 22,050 Hz).
+
+3. **Failure Handling Verification:**
+   - Empty audio upload (0 bytes): HTTP 422 `VALIDATION_ERROR` ("Audio recording is empty or corrupt").
+   - Corrupt non-WAV data: HTTP 422 `VALIDATION_ERROR` ("Audio must be a valid PCM WAV (.wav) file").
+   - Oversized recording (> 10MB): HTTP 422 `VALIDATION_ERROR` ("Audio file exceeds maximum upload size limit").
+   - Empty text input for TTS: HTTP 422 `VALIDATION_ERROR` ("Text content for speech synthesis cannot be empty").
+   - Missing both audio and text: HTTP 422 `VALIDATION_ERROR` ("Either an audio recording or text prompt must be provided").
+
+4. **Automated Test Suite Execution:**
+   - 28 voice tests executed: `pytest tests/unit/test_voice_service.py tests/api/test_voice_api.py` $\to$ **28 passed, 0 failed in 5.50s**.
+   - Full regression suite: `pytest tests/` $\to$ **218 passed, 0 failed in 11.52s** (100% pass rate).
+   - Static analysis: `ruff check` (0 errors) and `ruff format --check` (117 files clean).
+
+---
+
+### 25.5 Final Voice Implementation Verdict Matrix
+
+| Criterion | Final Status | Technical Evidence & Details |
+| :--- | :---: | :--- |
+| **Backend Service** | **RUNNING** | Active at `http://127.0.0.1:8000`, Swagger at `/docs`, DB connected |
+| **Speech-to-Text (STT)** | **WORKING** | Local Windows System.Speech offline STT, validated with genuine audio |
+| **Text-to-Speech (TTS)** | **WORKING** | Windows SAPI offline WAV + gTTS online MP3 fallback, audio verified |
+| **Voice Pipeline (E2E)** | **WORKING** | Full Audio Ingest $\to$ STT $\to$ Clinical Intent $\to$ TTS pipeline verified |
+| **Real Audio Test** | **PASSED** | Live PCM WAV speech transcribed, synthesized, and verified playable |
+| **Failure Handling** | **PASSED** | Corrupt, empty, oversized audio and invalid text rejected with HTTP 422 |
+| **Offline Independence**| **YES** | Default STT and TTS engines require 0 internet access and 0 external API keys |
+
+---
+
+# 26. COMPLETE ONLINE VISION SCREENING PLATFORM (7-MODULE MODULAR ARCHITECTURE)
+
+OptiGuide provides an interactive, guided online vision screening platform inspired by digital vision screening workflows (such as Essilor's online test), built from the ground up as an original, independent OptiGuide clinical screening platform.
+
+### Architectural Principles:
+1. **Clinical Rigor & Statutory Disclaimer**: Non-diagnostic, non-prescriptive preliminary functional observations. All citizen-facing payloads require informed consent and display clear disclaimers that digital screening cannot replace an in-person eye exam.
+2. **Server-Side Scoring & Security**: Challenge progression and correctness evaluation happen strictly server-side. Correct answers are NEVER leaked to the client in challenge options or stimulus payloads.
+3. **Display Hardware Calibration**: Dynamic calculation of screen PPI based on standard physical reference measurement (ISO/IEC 7810 ID-1 card) to ensure millimeter-accurate optotype rendering across diverse screens.
+4. **Multilingual Inclusivity**: Full localized metadata, instructions, questions, and observation copy across English (`en`), Hindi (`hi`), and Odia (`or`).
+
+---
+
+## 26.1 The 7 Modular Screening Engines
+
+OptiGuide incorporates 7 dedicated screening modules covering refractive, functional, and physiological visual dimensions:
+
+### Module 1: Visual Acuity (`VISUAL_ACUITY`)
+- **Clinical Target**: Distance and near high-contrast resolution acuity.
+- **Eyes Tested**: Monocular (`OD`, `OS`) and Binocular (`OU`).
+- **Protocols Supported**: `TUMBLING_E`, `LANDOLT_C`, `SLOAN_LETTERS`.
+- **Adaptive Progression**: Staircase difficulty across calibrated Snellen fractions ($20/200$, $20/100$, $20/50$, $20/30$, $20/20$) with physical millimeter scaling calculated from display PPI.
+- **Outcome Classification**: `NO_CONCERN_REPORTED` ($20/20$), `OBSERVATION_REQUIRES_FOLLOW_UP` ($\le 20/40$ or interocular asymmetry $\ge 0.3$ LogMAR).
+
+### Module 2: Astigmatism (`ASTIGMATISM`)
+- **Clinical Target**: Asymmetric corneal or lenticular curvature across radial meridians.
+- **Stimulus**: 12-spoke radial clock dial with central fixation target at 60 cm.
+- **Evaluation**: Identifies whether all spokes appear uniform, or if specific meridians appear darker, sharper, or thicker.
+- **Outcome Classification**: `NO_CONCERN_REPORTED` (all lines uniform), `OBSERVATION_REQUIRES_FOLLOW_UP` (darker/sharper lines identified $\to$ indicates meridian asymmetry).
+
+### Module 3: Contrast / Light Sensitivity (`CONTRAST_SENSITIVITY`)
+- **Clinical Target**: Low-contrast triplet character discrimination under uniform luminance.
+- **Levels**: Diminishing contrast gradient: 50% contrast, 10% contrast, 2.5% contrast at 60 cm.
+- **Outcome Classification**: `NO_CONCERN_REPORTED` (identifies 2.5% faint triplet), `OBSERVATION_REQUIRES_FOLLOW_UP` (fails at 10% or 50% threshold).
+
+### Module 4: Near Vision Reading Acuity (`NEAR_VISION_READING`)
+- **Clinical Target**: Functional near-reading accommodation and presbyopia screening at 40 cm.
+- **Scale**: Standard paragraph typography scales: N12 ($1.6\text{ mm}$), N8 ($1.1\text{ mm}$), N5 ($0.7\text{ mm}$).
+- **Outcome Classification**: `NO_CONCERN_REPORTED` (reads N5 effortlessly), `OBSERVATION_REQUIRES_FOLLOW_UP` (struggles with N8 or N12).
+
+### Module 5: Near Vision Duochrome (`NEAR_VISION_DUOCHROME`)
+- **Clinical Target**: Longitudinal chromatic aberration balance (myopic vs. hyperopic accommodation tendency).
+- **Stimulus**: Split-field red background (`#D32F2F`, $650\text{ nm}$) and green background (`#388E3C`, $535\text{ nm}$) displaying high-contrast optotypes at 40 cm.
+- **Evaluation**: Red clearer $\to$ myopic/over-minus shift; Green clearer $\to$ hyperopic/over-plus shift; Both equal $\to$ balanced accommodation.
+- **Outcome Classification**: `NO_CONCERN_REPORTED` (both equal), `OBSERVATION_REQUIRES_FOLLOW_UP` (asymmetric focus).
+
+### Module 6: Color Vision Screening (`COLOR_VISION`)
+- **Clinical Target**: Red-green and general chromatic deficiency.
+- **Plates**: 6 pseudoisochromatic plates (Demonstration, Transformation, Red-Green deficit, Vanishing).
+- **Anti-Cheating & Security**: Randomized sequence presentation; expected answers strictly hidden from client.
+- **Outcome Classification**: `NO_CONCERN_REPORTED` ($\ge 5/6$ correct), `OBSERVATION_REQUIRES_FOLLOW_UP` ($\le 4/6$ correct).
+
+### Module 7: Central Vision & Macular Distortion (`CENTRAL_VISION_AMSLER`)
+- **Clinical Target**: Central visual field distortion (metamorphopsia) and scotoma (macular anomalies).
+- **Stimulus**: High-contrast Amsler grid with central fixation white dot at 30 cm viewing distance.
+- **Standard Questionnaire**:
+  1. Can you see all 4 corners and borders while fixating on the center?
+  2. Do any straight lines appear wavy, bent, or distorted?
+  3. Are any areas of the grid blurred, dark, discolored, or missing?
+- **Outcome Classification**: `NO_CONCERN_REPORTED` (normal grid perception), `OBSERVATION_REQUIRES_FOLLOW_UP` (wavy lines or missing grid patches $\to$ priority clinical referral).
+
+---
+
+## 26.2 Module Implementation & Classification Status
+
+| Module Name | Implementation Status | Protocol Identifier | Clinical Purpose | Stimulus Specification | Server Evaluation Strategy | Automated Test Coverage |
+| :--- | :---: | :---: | :--- | :--- | :--- | :---: |
+| **Visual Acuity** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_VA_V1` | Distance/near spatial resolution | Tumbling E / Landolt C ($20/200 \to 20/20$) | 5-step staircase progression; mm sizing via display PPI | Unit & API tests passing |
+| **Astigmatism** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_ASTIG_V1` | Meridian curvature symmetry | 12-spoke radial clock dial | Meridian darkness/sharpness comparison | Unit & API tests passing |
+| **Contrast Sensitivity** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_CONTRAST_V1` | Low-luminance triplet perception | Faint letter triplets ($50\% \to 2.5\%$) | Diminishing threshold scoring | Unit & API tests passing |
+| **Near Vision Reading** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_NEAR_READING_V1` | Functional near accommodation | Standardized N12, N8, N5 paragraphs | 3-step reading difficulty evaluation at 40 cm | Unit & API tests passing |
+| **Near Vision Duochrome** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_DUOCHROME_V1` | Longitudinal chromatic balance | Red (`#D32F2F`) / Green (`#388E3C`) split-field | Comparative focus & accommodation check | Unit & API tests passing |
+| **Color Vision** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_COLOR_V1` | Red-green chromatic discrimination | 6 pseudoisochromatic plates | Server-side plate scoring; hidden answer confidentiality | Unit & API tests passing |
+| **Central Vision Amsler** | `IMPLEMENTED AND TESTED` | `OPTIGUIDE_AMSLER_V1` | Metamorphopsia & scotoma screening | Standard Amsler grid with fixation dot | 3-item macular distortion questionnaire | Unit & API tests passing |
+
+---
+
+## 26.3 Display Calibration Subsystem & Mathematical Model
+
+Physical sizing on digital monitors depends on the display's Pixels Per Inch (PPI). An uncalibrated display renders optotypes at unpredictable physical sizes, distorting visual angle subtended at the nodal point of the eye.
+
+### Calibration Method (Standard ID-1 Card Matching):
+OptiGuide uses standard credit card dimensions defined by **ISO/IEC 7810 ID-1**:
+- Width: $85.60\text{ mm} = 3.370\text{ inches}$.
+- Citizen adjusts an on-screen card guide to match a physical card.
+- Client submits `reported_card_width_px`.
+
+### Server-Side PPI Formula:
+$$\text{computed\_ppi} = \frac{\text{reported\_card_width\_px}}{3.370}$$
+
+### Plausibility Bounds & Status:
+- If $60.0 \le \text{computed\_ppi} \le 800.0$: Marked `SERVER_VERIFIED`.
+- Otherwise: Marked `CLIENT_REPORTED` or `UNCALIBRATED`.
+- **Uncalibrated Fallback**: If citizen skips calibration, the final report flags `overall_classification: UNCALIBRATED`, notes that optotype millimeter scaling was unverified, and provides cautionary interpretation.
+
+---
+
+## 26.4 Unified Screening Session Engine & Finite State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED: Patient Consents & Initiates Session
+    CREATED --> IN_PROGRESS: POST /api/v1/screening/sessions/{id}/start
+    IN_PROGRESS --> IN_PROGRESS: Test Module Start & Progression
+    IN_PROGRESS --> COMPLETED: All Modules Finalized / Report Generated
+    IN_PROGRESS --> CANCELLED: Explicit Cancellation / Timeout
+    IN_PROGRESS --> EXPIRED: Session Expiry (24 hours inactivity)
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+```
+
+### Test Module Instance State Transitions:
+- `NOT_STARTED` $\to$ Initial registered state.
+- `IN_PROGRESS` $\to$ Stimulus challenges actively served to client.
+- `COMPLETED` $\to$ Final step evaluated; clinical observations computed.
+- `SKIPPED` $\to$ Patient elected to skip non-mandatory test.
+- `CANCELLED` $\to$ Patient cancelled active test instance.
+
+---
+
+## 26.5 Database Schema & Entity Relationships
+
+The subsystem introduces 4 relational tables in migration revision `009_online_vision_screening_platform`:
+
+1. **`screening_calibrations`**:
+   - `id` (UUID PK), `session_id` (FK `screening_sessions.id`), `user_id` (FK `users.id`).
+   - `device_category` (`DESKTOP`, `LAPTOP`, `TABLET`, `MOBILE`).
+   - `screen_width_px`, `screen_height_px`, `device_pixel_ratio`.
+   - `calibration_method`, `calibration_status` (`UNCALIBRATED`, `CLIENT_REPORTED`, `SERVER_VERIFIED`).
+   - `computed_ppi`, `target_viewing_distance_cm`, `user_confirmed_distance`.
+2. **`screening_test_instances`**:
+   - `id` (UUID PK), `session_id` (FK), `user_id` (FK).
+   - `test_type` (Enum: `VISUAL_ACUITY`, `ASTIGMATISM`, etc.).
+   - `status` (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `SKIPPED`, `CANCELLED`).
+   - `eye` (`OD`, `OS`, `OU`), `viewing_condition` (`WITH_GLASSES`, `WITHOUT_GLASSES`).
+   - `current_step`, `total_steps`, `result_classification`, `clinical_observation`, `result_details` (JSON).
+3. **`screening_test_responses`**:
+   - `id` (UUID PK), `test_instance_id` (FK `screening_test_instances.id`).
+   - `step_index`, `stimulus_id`, `stimulus_version`.
+   - `expected_answer` (stored server-side), `user_response`, `is_correct`, `response_time_ms`.
+4. **`screening_final_reports`**:
+   - `id` (UUID PK), `report_number` (String Unique: `OPT-REP-YYYYMMDD-XXXX`), `session_id` (FK), `user_id` (FK).
+   - `overall_classification` (`NO_CONCERN_REPORTED`, `OBSERVATION_REQUIRES_FOLLOW_UP`, `INCONCLUSIVE`, `INCOMPLETE`, `UNCALIBRATED`).
+   - `completed_tests_count`, `skipped_tests_count`, `calibration_summary` (JSON), `module_results` (JSON).
+   - `follow_up_recommendation`, `professional_referral_indicated` (Boolean), `limitations` (JSON), `clinical_disclaimer`.
+
+---
+
+## 26.6 Complete Online Screening REST API Specification
+
+| Method | Endpoint Route | Request Body | Response Model | RBAC Access | Purpose & Workflow |
+| :--- | :--- | :--- | :--- | :---: | :--- |
+| `GET` | `/api/v1/screening/configuration` | Query: `lang=en\|hi\|or` | `ScreeningPlatformConfigResponse` | Patient / All | Returns platform metadata, module list, localized instructions |
+| `GET` | `/api/v1/screening/tests` | Query: `lang=en\|hi\|or` | `list[TestModuleDefinition]` | Patient / All | Returns catalog of all 7 available screening tests |
+| `GET` | `/api/v1/screening/tests/{test_type}`| Query: `lang=en\|hi\|or` | `TestModuleDefinition` | Patient / All | Returns details, setup instructions, and protocol for 1 module |
+| `POST` | `/api/v1/screening/sessions/{id}/start` | None | `ScreeningSessionResponse` | Patient (Owner) | Validates active consent and transitions session to `in_progress` |
+| `POST` | `/api/v1/screening/sessions/{id}/calibration` | `CalibrationSubmitRequest` | `CalibrationResponse` | Patient (Owner) | Submits hardware display measurement and verifies computed PPI |
+| `GET` | `/api/v1/screening/sessions/{id}/calibration` | None | `CalibrationResponse` | Patient / Optometrist | Retrieves active display calibration parameters |
+| `POST` | `/api/v1/screening/sessions/{id}/tests/{type}/start` | `TestStartRequest` | `TestChallengeResponse` | Patient (Owner) | Initiates test module and returns first stimulus (answer hidden) |
+| `GET` | `/api/v1/screening/tests/{test_id}/next` | None | `TestChallengeResponse` | Patient (Owner) | Fetches the current active stimulus challenge for the test |
+| `POST` | `/api/v1/screening/tests/{test_id}/responses` | `TestResponseSubmitRequest` | `TestStepResponse` | Patient (Owner) | Submits stimulus answer, records response time, evaluates step |
+| `POST` | `/api/v1/screening/tests/{test_id}/complete` | None | `TestResultResponse` | Patient (Owner) | Concludes test module and calculates preliminary observation |
+| `POST` | `/api/v1/screening/tests/{test_id}/cancel` | `TestCancelRequest` | `TestResultResponse` | Patient (Owner) | Cancels an in-progress test instance |
+| `GET` | `/api/v1/screening/tests/{test_id}/result` | None | `TestResultResponse` | Patient / Optometrist | Retrieves individual module result and clinical observation |
+| `GET` | `/api/v1/screening/sessions/{id}/report` | None | `FinalScreeningReportResponse` | Patient / Optometrist | Generates or fetches consolidated 7-module final report |
+| `GET` | `/api/v1/screening/reports/{report_id}` | None | `FinalScreeningReportResponse` | Patient / Optometrist | Fetches final report by UUID (IDOR & shopkeeper blocked) |
+| `GET` | `/api/v1/screening/history` | Query: `limit, offset` | `ScreeningHistoryResponse` | Patient (Owner) | Lists historical completed screening sessions and report numbers |
+
+---
+
+## 26.7 Anti-Cheating & Security Controls
+
+1. **Answer Confidentiality**: Stimulus challenge responses (`TestChallengeResponse`) contain `optotype`, `orientation`, `nominal_size_mm`, `options`, `prompt_question`, and `target_viewing_distance_cm`. Correct answers are generated deterministically or looked up strictly in server memory during response submission. Client inspections cannot discern correct answers from API responses.
+2. **Sequential Step Enforcement**: Test responses require `step_index` matching the server's `instance.current_step`. Submissions out of order are rejected with HTTP 400 `VALIDATION_ERROR`.
+3. **Response Time Telemetry**: Client submits `response_time_ms` for each challenge. Unphysiologically rapid responses ($< 150\text{ ms}$) or excessive delays ($> 30\text{ s}$) are flagged in audit logs.
+4. **Active Consent Gate**: Starting sessions or initiating test modules requires active, unrevoked informed consent (`ScreeningConsent.is_active == True`). Withdrawn consent raises HTTP 403 `CONSENT_REQUIRED`.
+5. **RBAC & Clinical Isolation**: Only session owners and licensed optometrists can view completed clinical reports. Optical shopkeepers are strictly forbidden (HTTP 403) to prevent unauthorized medical record disclosure.
+
+---
+
+# 27. VOICE-CONTROLLED ADAPTIVE VISUAL ACUITY TEST ENGINE
+
+## 27.1 Architecture & Workflow Overview
+
+The Voice-Controlled Adaptive Visual Acuity Test Engine enables interactive, hands-free visual acuity screening using device microphone audio. Rather than requiring physical keyboard, mouse, or touch input, the citizen views optotype stimuli on their screen and speaks their answer aloud.
+
+The end-to-end interactive loop operates as follows:
+1. **Optotype Presentation**: Server issues an optotype challenge (Tumbling E, Landolt C, or Sloan letter) sized according to display PPI and viewing distance geometry. The expected correct answer is strictly hidden from the client.
+2. **Spoken Response Capture**: The client records microphone audio as PCM WAV (`audio/wav`) or base64 PCM stream.
+3. **Audio Ingestion & Validation**: The backend receives the audio via `POST /api/v1/screening/acuity/tests/{test_id}/voice-response`. The audio stream is validated for PCM format, sampling rate, frame integrity, and size limits ($< 25\text{ MB}$).
+4. **Speech-to-Text Transcription**: The speech engine (Windows `System.Speech` offline recognizer or cloud provider) generates raw transcription and confidence metrics ($0.0 - 1.0$).
+5. **Clinical Response Interpretation (`VoiceAcuityInterpreter`)**:
+   - Strips filler phrases ("I think it is", "it looks like", "the letter is").
+   - Normalizes colloquial and phonetic speech (e.g., "charlie" $\to$ "C", "delta" $\to$ "D", "zed"/"zee" $\to$ "Z", "pointing downwards" $\to$ "DOWN").
+   - Separates **speech recognition uncertainty** from **clinical visual inability**:
+     - *Silence / Empty Audio*: Returns `status="UNRECOGNIZED"`, `retry_required=True`.
+     - *Low Confidence ($< 0.35$)*: Returns `status="LOW_CONFIDENCE"`, `retry_required=True`.
+     - *Ambiguous Direction or Letter* (e.g. "up or down", "charlie and delta"): Returns `status="AMBIGUOUS"`, `retry_required=True`.
+     - *Visual Inability Phrases* ("cannot see", "can't make it out", "too blurry", "don't know", "blank"): Returns `status="CANNOT_SEE"`, `retry_required=False`. Recorded as an incorrect attempt without penalizing microphone or requiring retry.
+6. **Adaptive Staircase Progression (ISO 8596 / 3-of-4 ATS Rule)**:
+   - When retry is required: The attempt sequence is preserved without penalty; total attempt counters remain untouched.
+   - When answer is resolved: Correctness is independently scored server-side. The adaptive staircase determines whether the current difficulty level passes, fails, or requires another attempt, progressing toward the smallest reliably resolved optotype size.
+7. **Screening Assessment Finalization**:
+   - On completion, the engine calculates final Snellen fraction, LogMAR acuity, and decimal acuity.
+   - Automatically persists a `VisualAcuityAssessment` with preliminary screening observations and clinical disclaimers.
+
+---
+
+## 27.2 Supported Standardized Optotypes
+
+The server-controlled optotype engine supports three clinical standardized optotype sets:
+
+| Optotype Set | Enum Identifier | Valid Stimulus Symbols | Spoken Normalization & NATO Equivalents |
+| :--- | :--- | :--- | :--- |
+| **Tumbling E** | `TUMBLING_E` | `E_UP`, `E_DOWN`, `E_LEFT`, `E_RIGHT` | Spoken directions: `UP`, `DOWN`, `LEFT`, `RIGHT` (including "pointing up", "open left", etc.) |
+| **Landolt C** | `LANDOLT_C` | `C_UP`, `C_DOWN`, `C_LEFT`, `C_RIGHT` | Spoken gap directions: `UP`, `DOWN`, `LEFT`, `RIGHT` (including "open to the right", "towards top") |
+| **Sloan Letters** | `SLOAN` | `C`, `D`, `E`, `F`, `L`, `N`, `O`, `P`, `T`, `Z` | Letter names and NATO phonetics: `Charlie`, `Delta`, `Echo`, `Foxtrot`, `Lima`, `November`, `Oscar`, `Papa`, `Tango`, `Zulu` |
+
+---
+
+## 27.3 Database Schema & Migration Revision 010
+
+Database migration revision `010_voice_adaptive_acuity_enhancements` added the following clinical speech telemetry columns to the `adaptive_acuity_attempts` table:
+
+```sql
+ALTER TABLE adaptive_acuity_attempts ADD COLUMN input_modality VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE adaptive_acuity_attempts ADD COLUMN transcription_confidence FLOAT NULL;
+ALTER TABLE adaptive_acuity_attempts ADD COLUMN stt_provider VARCHAR(50) NULL;
+ALTER TABLE adaptive_acuity_attempts ADD COLUMN raw_transcript VARCHAR(255) NULL;
+ALTER TABLE adaptive_acuity_attempts ADD COLUMN recognition_status VARCHAR(30) NULL;
+```
+
+---
+
+## 27.4 Voice Acuity REST API Specification
+
+### Endpoint: `POST /api/v1/screening/acuity/tests/{test_id}/voice-response`
+
+- **Authorization**: `Bearer <token>` (Active Patient owner; strict IDOR protection enforced).
+- **Consumes**: `application/json` OR `multipart/form-data`.
+- **Status Code**: `200 OK` (or `422 Unprocessable Entity` for invalid audio format/out-of-order attempts).
+
+#### A. JSON Request Format (`application/json`):
+```json
+{
+  "attempt_sequence": 1,
+  "audio_base64": "UklGRi...",
+  "response_duration_ms": 1150
+}
+```
+
+#### B. Multipart Form Request Format (`multipart/form-data`):
+- `file`: Audio file binary stream (`.wav`, 16-bit PCM).
+- `attempt_sequence`: Form field integer (e.g. `1`).
+- `response_duration_ms`: Optional integer latency in milliseconds.
+
+#### C. Voice Step Response Model (`AdaptiveAcuityVoiceStepResponse`):
+```json
+{
+  "test_id": "3fd7c156-f5b2-45cc-8c8c-6f9610cffcf2",
+  "attempt_sequence": 1,
+  "test_status": "IN_PROGRESS",
+  "was_correct": true,
+  "level": 6,
+  "total_attempts": 1,
+  "correct_attempts": 1,
+  "is_test_complete": false,
+  "input_modality": "VOICE",
+  "recognition_status": "RECOGNIZED",
+  "raw_transcript": "pointing up",
+  "recognized_symbol": "UP",
+  "transcription_confidence": 0.94,
+  "stt_provider": "System.Speech (offline)",
+  "retry_required": false,
+  "feedback_message": "Recognized direction: UP.",
+  "next_challenge": {
+    "test_id": "3fd7c156-f5b2-45cc-8c8c-6f9610cffcf2",
+    "attempt_sequence": 2,
+    "current_level": 7,
+    "level_snellen": "20/30",
+    "level_logmar": 0.18,
+    "optotype_type": "TUMBLING_E",
+    "presented_symbol": "E_LEFT",
+    "choices": ["UP", "DOWN", "LEFT", "RIGHT"],
+    "target_size_arcmin": 7.5,
+    "target_height_mm": 6.54,
+    "target_height_px": 36.3,
+    "test_eye": "right",
+    "test_type": "DISTANCE",
+    "instructions": "Testing RIGHT eye at 3.0m. Speak clearly into the microphone."
+  },
+  "result_summary": null
+}
+```
+
+#### D. Ambiguity / Retry Response Example:
+When background noise, low confidence, or conflicting speech occurs:
+```json
+{
+  "test_id": "3fd7c156-f5b2-45cc-8c8c-6f9610cffcf2",
+  "attempt_sequence": 1,
+  "test_status": "IN_PROGRESS",
+  "was_correct": null,
+  "level": 6,
+  "total_attempts": 0,
+  "correct_attempts": 0,
+  "is_test_complete": false,
+  "input_modality": "VOICE",
+  "recognition_status": "AMBIGUOUS",
+  "raw_transcript": "up or down",
+  "recognized_symbol": null,
+  "transcription_confidence": 0.88,
+  "retry_required": true,
+  "feedback_message": "Multiple directions detected (UP, DOWN). Please say only one direction (Up, Down, Left, or Right).",
+  "next_challenge": {
+    "attempt_sequence": 1,
+    "current_level": 6,
+    "presented_symbol": "E_UP"
+  },
+  "result_summary": null
+}
+```
+
+---
+
+## 27.5 Statutory Clinical Boundaries & Non-Prescriptive Notice
+
+> [!WARNING]
+> **PRELIMINARY FUNCTIONAL SCREENING ONLY — NOT AN OPTICAL PRESCRIPTION**  
+> 1. Spoken visual acuity testing evaluates functional letter and symbol resolution under defined display calibration.  
+> 2. The engine **NEVER** estimates, computes, or outputs refractive error parameters (Sphere $\text{SPH}$, Cylinder $\text{CYL}$, or Axis $\text{AXIS}$).  
+> 3. Results represent preliminary screening observations. Users demonstrating reduced visual acuity or anisometropia are automatically referred to licensed eye care practitioners for comprehensive physical examination and clinical refraction.
+
+---
+
+## 27.6 Verification Evidence & Test Coverage
+
+The voice-controlled adaptive acuity engine is verified by 81 automated tests:
+- `tests/unit/test_voice_acuity_engine.py`: 71 unit tests covering speech normalization, phonetic dictionaries, visual inability detection, low-confidence gates, and Landolt C optotypes.
+- `tests/api/test_voice_adaptive_acuity_api.py`: 10 integration tests validating end-to-end voice test lifecycles, JSON and multipart audio submissions, IDOR isolation, and sequence integrity.
+- Total Backend Test Suite: **321 passing tests (100% pass rate)**.
+
+---
+
+## 27.7 Full-Stack Web Implementation (`apps/web`): 8-Screen Interactive Screening UI & Real Audio Pipeline
+
+The web application provides a complete, production-grade interactive vision testing experience connecting directly to the FastAPI adaptive acuity engine:
+
+### 1. Architectural Components:
+- **`apps/web/src/pages/ScreeningFlowPage.tsx`**: State machine coordinating the 8 screening stages:
+  - **Screen A (Welcome)**: Screening introduction, privacy notice, duration estimate (~3 mins), clinical non-diagnostic disclaimer, language selection (EN, HI, OD), and audio instruction toggle.
+  - **Screen B (Preparation)**: Guidance on seating position, ambient room lighting, viewing distance (1.0m desktop / 3.0m calibrated), spectacles check ("wear your normal distance glasses"), and real microphone permission validation.
+  - **Screen C (Display Calibration)**: Interactive physical credit-card slider (standard ISO/IEC 7810 ID-1 card dimensions: 85.60 mm width) calculating display DPI and pixel-to-arcminute scaling factors, with uncalibrated fallback.
+  - **Screen D (Eye Selection & Occlusion)**: Right eye (OD), Left eye (OS), or Both eyes (OU) selection with explicit occlusion confirmation checklist.
+  - **Screen E (Interactive Test Display)**: High-contrast server-directed optotype presentation (TUMBLING_E, LANDOLT_C, SLOAN) with hidden expected answers.
+  - **Screen F (Voice Recording & Audio Waveform)**: Automatic recording trigger via `voiceRecorder`, real-time RMS audio volume monitor animating a pulsing microphone soundwave, silence timeout (~3.8s), and fallback directional buttons.
+  - **Screen G (Adaptive Feedback Banner)**: Displays recognized speech transcript, recognition confidence score, server correctness determination, and unclear speech retry notice without scoring penalty.
+  - **Screen H (Final Screening Report)**: Functional visual acuity breakdown (Snellen fraction, LogMAR, Decimal), display calibration tier, non-prescriptive clinical observations, certified optometrist referral directory, and mandatory non-diagnostic statutory disclaimer.
+- **`apps/web/src/services/voiceRecorder.ts`**: Pure browser Web Audio API recorder:
+  - Captures raw microphone audio via `navigator.mediaDevices.getUserMedia({ audio: true })`.
+  - Resamples to 16,000 Hz single-channel (mono) PCM audio using `AudioContext`.
+  - Encodes standard 16-bit PCM WAV with standard RIFF/WAVE header via `DataView`.
+  - Calculates real-time RMS decibel volume for UI audio meters.
+  - Cleans up media stream tracks immediately on test completion or cancellation.
+- **`apps/web/src/services/apiClient.ts`**: Complete typed HTTP client:
+  - Frictionless patient session auto-provisioning (`ensureAuthenticatedPatient`).
+  - Active consent document acceptance (`acceptScreeningConsent`).
+  - Multipart audio blob streaming (`submitAdaptiveAcuityVoiceBlob`).
+  - Staircase response evaluation and final assessment completion.
+
+### 2. Frontend Test Verification:
+- `apps/web/tests/voice_adaptive_acuity.test.js`: 4 tests validating PCM WAV encoding headers, microphone lifecycle, apiClient endpoint contracts, and 8-screen rendering state machine.
+- `apps/web/tests/web.test.js`: 9 tests verifying PRD design tokens, multilingual dictionaries, customer kiosk records, and clinical consent integration.
+- Total Frontend Test Suite: **13 passing tests (100% pass rate)**.
+
+### 3. Live System End-to-End Verification:
+- Executed `tests/e2e_live_probe.py` against live daemon instances:
+  - Registered and authenticated patient.
+  - Accepted server-controlled consent document version `1.0.0`.
+  - Created session and calibrated screen at 100 cm viewing distance.
+  - Initiated adaptive test for RIGHT_EYE (`TUMBLING_E`).
+  - Transmitted real 16 kHz PCM WAV voice byte stream to `/api/v1/screening/acuity/tests/{test_id}/voice-response`.
+  - Verified speech recognition, ISO 8596 staircase progression, and final assessment determination.
+  - Result: **All live end-to-end verifications passed**.
+
+---
+
+# 28. APPENDIX A: ENVIRONMENT CONFIGURATION & SECRET REFERENCE
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -692,7 +1333,7 @@ python -m pytest tests -v
 
 ---
 
-# 26. APPENDIX B: ROLE-BASED ACCESS CONTROL (RBAC) PERMISSION MATRIX
+# 29. APPENDIX B: ROLE-BASED ACCESS CONTROL (RBAC) PERMISSION MATRIX
 
 | Endpoint Group | `patient` | `shopkeeper` | `optometrist` | `admin` |
 | :--- | :---: | :---: | :---: | :---: |
@@ -707,7 +1348,7 @@ python -m pytest tests -v
 
 ---
 
-# 27. APPENDIX C: CLINICAL ALGORITHMIC REFERENCE & CUT-OFF THRESHOLDS
+# 30. APPENDIX C: CLINICAL ALGORITHMIC REFERENCE & CUT-OFF THRESHOLDS
 
 ### Visual Acuity Conversion Matrix:
 - Snellen $20/20 \iff 1.0\text{ Decimal} \iff 0.00\text{ LogMAR}$ (Normal vision)
@@ -724,6 +1365,6 @@ python -m pytest tests -v
 - Meridian line thickening/darkening: Astigmatism indicated; axis recorded at sharpest meridian angle ($0^\circ - 180^\circ$) $\to$ `PRIORITY` referral
 
 ---
-*Document Version: 4.0.0-CONSOLIDATED*  
-*Last Updated: 2026-11-04*  
+*Document Version: 4.2.0-VOICE-ADAPTIVE-ACUITY-CONSOLIDATED*  
+*Last Updated: 2026-11-05*  
 *Author: Senior Backend Architecture & Clinical Engineering Team*

@@ -30,16 +30,54 @@ class CalibrationMetadata(BaseModel):
 class VisualAcuityCreateRequest(BaseModel):
     """Payload for submitting visual acuity test findings."""
 
-    test_eye: str = Field(..., pattern="^(right|left|both|od|os|ou)$")
-    snellen_fraction: str = Field(..., max_length=20, json_schema_extra={"example": "20/20"})
-    logmar: float = Field(..., ge=-0.3, le=2.0)
-    decimal_acuity: float = Field(..., gt=0.0, le=2.5)
-    tested_distance_meters: float = Field(default=0.6, gt=0.1, le=10.0)
+    assessment_type: str = Field(
+        default="DISTANCE",
+        pattern="^(DISTANCE|NEAR|distance|near)$",
+        description="Screening test type: DISTANCE or NEAR",
+    )
+    test_eye: str = Field(
+        ...,
+        pattern="^(right|left|both|od|os|ou|RIGHT|LEFT|BOTH|OD|OS|OU)$",
+        description="Eye tested: right (OD), left (OS), or both (OU)",
+    )
+    snellen_fraction: str = Field(
+        ...,
+        max_length=20,
+        description="Standard Snellen notation (e.g. '20/20', '6/6', '20/40')",
+        json_schema_extra={"example": "20/20"},
+    )
+    logmar: float | None = Field(
+        default=None,
+        ge=-0.3,
+        le=2.0,
+        description="Optional pre-computed logMAR. If supplied, must agree with Snellen within tolerance.",
+    )
+    decimal_acuity: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=2.5,
+        description="Optional pre-computed decimal acuity equivalent.",
+    )
+    tested_distance_meters: float | None = Field(
+        default=0.6,
+        gt=0.1,
+        le=12.0,
+        description="Viewing distance in meters for distance screening.",
+    )
     unassisted_or_corrected: str = Field(
         default="unassisted", pattern="^(unassisted|with_glasses|with_contacts)$"
     )
-    near_reading_label: str | None = Field(default=None, max_length=20)
-    near_reading_distance_cm: float | None = Field(default=None, gt=0.0)
+    near_reading_label: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Near reading acuity notation (e.g. 'N6', 'J1', '20/20').",
+    )
+    near_reading_distance_cm: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=200.0,
+        description="Viewing distance in centimeters for near screening.",
+    )
     is_calibrated: bool = False
     calibration: CalibrationMetadata | None = None
     observations: str | None = Field(default=None, max_length=500)
@@ -53,6 +91,7 @@ class VisualAcuityResponse(BaseModel):
     id: uuid.UUID
     session_id: uuid.UUID
     user_id: uuid.UUID
+    assessment_type: str = "DISTANCE"
     test_eye: str
     snellen_fraction: str
     logmar: float
@@ -65,6 +104,33 @@ class VisualAcuityResponse(BaseModel):
     calibration_metadata: str | None = None
     observations: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VisualAcuitySummaryResponse(BaseModel):
+    """Preliminary visual acuity observations breakdown and clinical non-diagnostic summary."""
+
+    session_id: uuid.UUID | None = None
+    distance_assessments: dict[str, VisualAcuityResponse | dict[str, Any] | None]
+    near_assessments: dict[str, VisualAcuityResponse | dict[str, Any] | None]
+    interocular_difference_logmar: float | None = None
+    missing_observations: list[str] = Field(default_factory=list)
+    referral_recommended: bool = False
+    referral_reasons: list[str] = Field(default_factory=list)
+    clinical_disclaimer: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class VisualAcuityListResponse(BaseModel):
+    """Paginated list of visual acuity assessments."""
+
+    items: list[VisualAcuityResponse] = Field(default_factory=list)
+    total: int = Field(..., description="Total count of records")
+    limit: int = Field(default=20, description="Items requested per page")
+    offset: int = Field(default=0, description="Page offset")
 
     model_config = ConfigDict(from_attributes=True)
 

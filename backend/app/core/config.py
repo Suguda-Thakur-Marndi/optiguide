@@ -53,6 +53,14 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
+    # Voice Assistant & Audio Configuration
+    VOICE_ENABLED: bool = True
+    VOICE_STT_PROVIDER: str = "local"
+    VOICE_TTS_PROVIDER: str = "local"
+    VOICE_MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB limit
+    VOICE_DEFAULT_LANGUAGE: str = "en-US"
+    VOICE_STORAGE_DIR: str = "./audio_storage"
+
     @field_validator("DATABASE_URL", mode="after")
     @classmethod
     def resolve_sqlite_url(cls, v: str) -> str:

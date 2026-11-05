@@ -10,6 +10,7 @@ if _backend_root not in sys.path:
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1.router import api_router
@@ -75,6 +76,19 @@ def create_application() -> FastAPI:
             version=settings.APP_VERSION,
             environment=settings.APP_ENV,
             timestamp=datetime.now(UTC).isoformat(),
+        )
+
+    # Interactive Voice Tester Web UI
+    @app.get("/voice-test", response_class=HTMLResponse, tags=["Voice Assistant"])
+    async def voice_test_ui():
+        root_path = Path(__file__).resolve().parent.parent.parent
+        html_file = root_path / "voice_tester.html"
+        if not html_file.exists():
+            html_file = root_path / "backend" / "voice_tester.html"
+        if html_file.exists():
+            return HTMLResponse(content=html_file.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            content="<h1>OptiGuide Voice Assistant</h1><p>voice_tester.html is available in project root.</p>"
         )
 
     # Include API v1 Router

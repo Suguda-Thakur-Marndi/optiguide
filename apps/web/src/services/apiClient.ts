@@ -6,6 +6,13 @@ import type {
   ColorVisionCreateRequest,
   ColorVisionResponse,
   ClinicalSessionSummaryResponse,
+  AdaptiveAcuityStartRequest,
+  OptotypeChallengeResponse,
+  AdaptiveAcuityResponseRequest,
+  AdaptiveAcuityVoiceResponseRequest,
+  AdaptiveAcuityResultResponse,
+  AdaptiveAcuityStepResponse,
+  AdaptiveAcuityVoiceStepResponse,
 } from '@optiguide/shared';
 /**
  * OptiGuide Web Centralized API Client
@@ -192,8 +199,16 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const message = errorData.detail || errorData.message || `Request failed with status ${response.status}`;
-        throw new Error(typeof message === 'string' ? message : JSON.stringify(message));
+        const message =
+          errorData.error?.message ||
+          errorData.detail ||
+          errorData.message ||
+          `Request failed with status ${response.status}`;
+        const err = new Error(typeof message === 'string' ? message : JSON.stringify(message));
+        (err as any).status = response.status;
+        (err as any).code = errorData.error?.code;
+        (err as any).errorData = errorData;
+        throw err;
       }
 
       if (response.status === 204) {
@@ -353,14 +368,55 @@ class ApiClient {
 
   // Screening Session Lifecycle
   public async createScreeningSession(): Promise<ScreeningSessionResponse> {
-    return this.request<ScreeningSessionResponse>(
-      '/api/v1/screening/sessions',
-      {
-        method: 'POST',
-        body: JSON.stringify({}),
-      },
-      true
-    );
+    try {
+      return await this.request<ScreeningSessionResponse>(
+        '/api/v1/screening/sessions',
+        {
+          method: 'POST',
+          body: JSON.stringify({}),
+        },
+        true
+      );
+    } catch (err: any) {
+      const is409 =
+        err?.status === 409 ||
+        err?.code === 'SESSION_ALREADY_ACTIVE' ||
+        (err?.message && (err.message.includes('409') || err.message.includes('already in progress') || err.message.includes('SESSION_ALREADY_ACTIVE')));
+
+      if (is409) {
+        try {
+          const listRes = await this.request<{ items: ScreeningSessionResponse[] }>(
+            '/api/v1/screening/sessions?status=in_progress',
+            { method: 'GET' },
+            true
+          );
+          if (listRes?.items?.length) {
+            for (const s of listRes.items) {
+              await this.cancelScreeningSession(s.id, 'Superseded by starting a new screening').catch(() => {});
+            }
+          }
+          return await this.request<ScreeningSessionResponse>(
+            '/api/v1/screening/sessions',
+            {
+              method: 'POST',
+              body: JSON.stringify({}),
+            },
+            true
+          );
+        } catch {
+          // If cancel/re-create fails, retrieve existing in-progress session to continue
+          const listRes = await this.request<{ items: ScreeningSessionResponse[] }>(
+            '/api/v1/screening/sessions?status=in_progress',
+            { method: 'GET' },
+            true
+          );
+          if (listRes?.items?.length) {
+            return listRes.items[0];
+          }
+        }
+      }
+      throw err;
+    }
   }
 
   public async getScreeningSession(id: string): Promise<ScreeningSessionResponse> {
@@ -472,6 +528,176 @@ class ApiClient {
       true
     );
   }
+
+  // Interactive Adaptive Visual Acuity & Voice Screening (ISO 8596 / 3-of-4 ATS)
+  public async startAdaptiveAcuityTest(
+    sessionId: string,
+    payload: AdaptiveAcuityStartRequest
+  ): Promise<OptotypeChallengeResponse> {
+    try {
+      return await this.request<OptotypeChallengeResponse>(
+        `/api/v1/screening/sessions/${sessionId}/acuity/start`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        true
+      );
+    } catch (err: any) {
+      const isDuplicate = err?.message && err.message.includes('already in progress');
+      if (isDuplicate) {
+        const match = err.message.match(/\(Test ID:\s*([a-f0-9\-]+)\)/i);
+        if (match && match[1]) {
+          const testId = match[1];
+          try {
+            await this.cancelAdaptiveAcuityTest(testId, 'Superseded by user restarting eye test');
+            return await this.request<OptotypeChallengeResponse>(
+              `/api/v1/screening/sessions/${sessionId}/acuity/start`,
+              {
+                method: 'POST',
+                body: JSON.stringify(payload),
+              },
+              true
+            );
+          } catch {
+            return await this.getAdaptiveAcuityChallenge(testId);
+          }
+        }
+      }
+      throw err;
+    }
+  }
+
+  public async getAdaptiveAcuityChallenge(testId: string): Promise<OptotypeChallengeResponse> {
+    return this.request<OptotypeChallengeResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/next`,
+      { method: 'GET' },
+      true
+    );
+  }
+
+  public async submitAdaptiveAcuityResponse(
+    testId: string,
+    payload: AdaptiveAcuityResponseRequest
+  ): Promise<AdaptiveAcuityStepResponse> {
+    return this.request<AdaptiveAcuityStepResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/response`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      true
+    );
+  }
+
+  public async submitAdaptiveAcuityVoiceResponse(
+    testId: string,
+    payload: AdaptiveAcuityVoiceResponseRequest
+  ): Promise<AdaptiveAcuityVoiceStepResponse> {
+    return this.request<AdaptiveAcuityVoiceStepResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/voice-response`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      true
+    );
+  }
+
+  public async submitAdaptiveAcuityVoiceBlob(
+    testId: string,
+    attemptSequence: number,
+    wavBlob: Blob,
+    durationMs?: number
+  ): Promise<AdaptiveAcuityVoiceStepResponse> {
+    const url = `${API_BASE_URL}/api/v1/screening/acuity/tests/${testId}/voice-response`;
+    const formData = new FormData();
+    formData.append('file', wavBlob, 'response.wav');
+    formData.append('attempt_sequence', attemptSequence.toString());
+    if (durationMs !== undefined) {
+      formData.append('response_duration_ms', Math.round(durationMs).toString());
+    }
+
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err.detail || err.message || `Voice submission failed with status ${res.status}`;
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+
+    return (await res.json()) as AdaptiveAcuityVoiceStepResponse;
+  }
+
+  public async completeAdaptiveAcuityTest(testId: string): Promise<AdaptiveAcuityResultResponse> {
+    return this.request<AdaptiveAcuityResultResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/complete`,
+      { method: 'POST' },
+      true
+    );
+  }
+
+  public async cancelAdaptiveAcuityTest(
+    testId: string,
+    reason?: string
+  ): Promise<AdaptiveAcuityResultResponse> {
+    return this.request<AdaptiveAcuityResultResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify(reason ? { reason } : {}),
+      },
+      true
+    );
+  }
+
+  public async getAdaptiveAcuityResult(testId: string): Promise<AdaptiveAcuityResultResponse> {
+    return this.request<AdaptiveAcuityResultResponse>(
+      `/api/v1/screening/acuity/tests/${testId}/result`,
+      { method: 'GET' },
+      true
+    );
+  }
+
+  // Ensures active patient authorization for frictionless testing
+  public async ensureAuthenticatedPatient(): Promise<UserResponse> {
+    if (this.accessToken) {
+      try {
+        const me = await this.getMe();
+        return me;
+      } catch {
+        // Token invalid, clear and re-provision
+        this.clearTokens();
+      }
+    }
+
+    // Auto-provision guest patient account
+    const rand = Math.random().toString(36).substring(2, 9);
+    const guestEmail = `patient_${Date.now()}_${rand}@optiguide.local`;
+    const regRes = await this.register({
+      email: guestEmail,
+      password: 'VisionPass2026!',
+      full_name: 'OptiGuide Vision Citizen',
+    });
+
+    // Accept consent
+    try {
+      await this.acceptScreeningConsent('1.0.0');
+    } catch {
+      // Ignore if already active
+    }
+
+    return regRes.user;
+  }
 }
 
 
@@ -489,4 +715,11 @@ export type {
   ColorVisionCreateRequest,
   ColorVisionResponse,
   ClinicalSessionSummaryResponse,
+  AdaptiveAcuityStartRequest,
+  OptotypeChallengeResponse,
+  AdaptiveAcuityResponseRequest,
+  AdaptiveAcuityVoiceResponseRequest,
+  AdaptiveAcuityResultResponse,
+  AdaptiveAcuityStepResponse,
+  AdaptiveAcuityVoiceStepResponse,
 };

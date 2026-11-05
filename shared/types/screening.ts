@@ -271,3 +271,117 @@ export interface ClinicalSessionSummaryResponse {
   astigmatism_assessments: AstigmatismResponse[];
   color_vision_assessments: ColorVisionResponse[];
 }
+
+
+/**
+ * Interactive Adaptive Visual Acuity & Voice Screening Types
+ */
+export interface AdaptiveCalibrationInput {
+  screen_width_px?: number | null;
+  screen_height_px?: number | null;
+  display_dpi?: number | null;
+  viewing_distance_cm?: number | null;
+  calibration_method?: string | null;
+  is_professionally_supervised?: boolean;
+}
+
+export interface AdaptiveAcuityStartRequest {
+  test_type?: 'DISTANCE' | 'NEAR';
+  test_eye: 'right' | 'left' | 'both';
+  optotype_type?: 'TUMBLING_E' | 'SLOAN' | 'LANDOLT_C';
+  protocol_version?: string;
+  starting_level?: number;
+  viewing_distance_meters?: number | null;
+  user_reported_occlusion?: boolean;
+  calibration?: AdaptiveCalibrationInput | null;
+}
+
+export interface OptotypeChallengeResponse {
+  test_id: string;
+  attempt_sequence: number;
+  current_level: number;
+  level_snellen: string;
+  level_logmar: number;
+  optotype_type: 'TUMBLING_E' | 'SLOAN' | 'LANDOLT_C' | string;
+  presented_symbol: string;
+  choices: string[];
+  target_size_arcmin: number;
+  target_height_mm?: number | null;
+  target_height_px?: number | null;
+  test_eye: string;
+  test_type: string;
+  instructions: string;
+}
+
+export interface AdaptiveAcuityResponseRequest {
+  attempt_sequence: number;
+  user_response: string;
+  response_duration_ms?: number | null;
+}
+
+export interface AdaptiveAcuityVoiceResponseRequest {
+  attempt_sequence: number;
+  audio_base64: string;
+  response_duration_ms?: number | null;
+}
+
+export interface AdaptiveAcuityResultResponse {
+  test_id: string;
+  session_id: string;
+  user_id: string;
+  test_type: string;
+  test_eye: string;
+  optotype_type: string;
+  protocol_version: string;
+  status: string;
+  calibration_status: string;
+  is_calibrated: boolean;
+  viewing_distance_meters: number;
+  user_reported_occlusion: boolean;
+  total_attempts: number;
+  correct_attempts: number;
+  incorrect_attempts: number;
+  smallest_resolved_level?: number | null;
+  final_snellen?: string | null;
+  final_logmar?: number | null;
+  final_decimal?: number | null;
+  assessment_id?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  clinical_disclaimer: string;
+  validation_status: string;
+}
+
+export interface AdaptiveAcuityStepResponse {
+  test_id: string;
+  attempt_sequence: number;
+  test_status: string;
+  was_correct: boolean;
+  level: number;
+  total_attempts: number;
+  correct_attempts: number;
+  is_test_complete: boolean;
+  next_challenge?: OptotypeChallengeResponse | null;
+  result_summary?: AdaptiveAcuityResultResponse | null;
+}
+
+export interface AdaptiveAcuityVoiceStepResponse {
+  test_id: string;
+  attempt_sequence: number;
+  test_status: string;
+  was_correct: boolean | null;
+  level: number;
+  total_attempts: number;
+  correct_attempts: number;
+  is_test_complete: boolean;
+  input_modality: string;
+  recognition_status: string;
+  raw_transcript: string;
+  recognized_symbol?: string | null;
+  transcription_confidence?: number | null;
+  stt_provider?: string | null;
+  retry_required: boolean;
+  feedback_message: string;
+  next_challenge?: OptotypeChallengeResponse | null;
+  result_summary?: AdaptiveAcuityResultResponse | null;
+}
