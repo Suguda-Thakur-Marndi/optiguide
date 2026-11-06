@@ -139,7 +139,7 @@ export const getCurrentUser = (): UserProfile | null => {
     // Default guest profile
     return {
       id: 'usr-guest',
-      email: 'guest@optiguide.local',
+      email: 'guest@optiguide.org',
       fullName: 'Guest Visitor',
       role: 'guest',
       preferredLanguage: 'en',

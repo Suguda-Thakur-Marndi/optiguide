@@ -199,11 +199,17 @@ class ApiClient {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const message =
+        let message =
           errorData.error?.message ||
           errorData.detail ||
           errorData.message ||
           `Request failed with status ${response.status}`;
+        if (errorData.error?.details && Array.isArray(errorData.error.details) && errorData.error.details.length > 0) {
+          const detailMsgs = errorData.error.details
+            .map((d: any) => `${d.loc ? d.loc.slice(1).join('.') + ': ' : ''}${d.msg}`)
+            .join('; ');
+          message = `${message} (${detailMsgs})`;
+        }
         const err = new Error(typeof message === 'string' ? message : JSON.stringify(message));
         (err as any).status = response.status;
         (err as any).code = errorData.error?.code;
@@ -682,7 +688,7 @@ class ApiClient {
 
     // Auto-provision guest patient account
     const rand = Math.random().toString(36).substring(2, 9);
-    const guestEmail = `patient_${Date.now()}_${rand}@optiguide.local`;
+    const guestEmail = `patient_${Date.now()}_${rand}@optiguide.org`;
     const regRes = await this.register({
       email: guestEmail,
       password: 'VisionPass2026!',

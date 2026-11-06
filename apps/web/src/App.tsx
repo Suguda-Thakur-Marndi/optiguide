@@ -52,7 +52,7 @@ export default function App() {
   const handleSelectRole = (role: UserRole) => {
     const updated: UserProfile = {
       id: `usr-${role}`,
-      email: `${role}@optiguide.local`,
+      email: `${role}@optiguide.org`,
       fullName:
         role === 'shopkeeper'
           ? 'Rameshwar Mohapatra'
@@ -195,7 +195,7 @@ export default function App() {
           onLogoutSuccess={() => {
             const guest: UserProfile = {
               id: 'usr-guest',
-              email: 'guest@optiguide.local',
+              email: 'guest@optiguide.org',
               fullName: 'Guest Citizen',
               role: 'guest',
               preferredLanguage: 'en',
