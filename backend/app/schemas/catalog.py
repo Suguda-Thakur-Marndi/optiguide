@@ -104,6 +104,20 @@ class ProductResponse(BaseModel):
     is_active: bool
     image_url: str | None = None
     description: str | None = None
+    # Virtual Try-On Asset Telemetry & Geometry
+    try_on_asset_url: str | None = None
+    try_on_asset_type: str | None = "2d_png"
+    frame_colors: str | None = None
+    left_lens_center_x: float | None = 0.2875
+    left_lens_center_y: float | None = 0.5
+    right_lens_center_x: float | None = 0.7125
+    right_lens_center_y: float | None = 0.5
+    bridge_center_x: float | None = 0.5
+    bridge_center_y: float | None = 0.48
+    asset_scale: float = 1.0
+    asset_rotation_offset: float = 0.0
+    asset_version: str = "1.0.0"
+    is_try_on_available: bool = True
     created_at: datetime
     updated_at: datetime
 

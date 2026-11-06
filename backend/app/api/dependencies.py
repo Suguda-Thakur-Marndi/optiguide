@@ -141,6 +141,28 @@ def get_current_active_user(
     return current_user
 
 
+def get_current_user_optional(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security_bearer)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User | None:
+    """Optionally resolves authenticated User from Bearer token if supplied; returns None otherwise."""
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        token = credentials.credentials
+        payload = decode_access_token(token)
+        sub = payload.get("sub")
+        if not sub:
+            return None
+        user_uuid = uuid.UUID(sub)
+        user = UserRepository.get_by_id(db, user_uuid)
+        if user and user.is_active:
+            return user
+        return None
+    except Exception:
+        return None
+
+
 def require_roles(*allowed_roles: str) -> Callable:
     """Factory creating an RBAC dependency enforcing specified role membership."""
 

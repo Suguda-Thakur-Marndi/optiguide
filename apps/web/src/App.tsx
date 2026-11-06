@@ -5,6 +5,7 @@ import { LandingPage } from './pages/LandingPage';
 import { ScreeningFlowPage } from './pages/ScreeningFlowPage';
 import { ResultsPage } from './pages/ResultsPage';
 import { EyewearPage } from './pages/EyewearPage';
+import { VirtualTryOnPage } from './pages/VirtualTryOnPage';
 import { ShopDashboardPage } from './pages/ShopDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { LegalPages } from './pages/LegalPages';
@@ -16,12 +17,41 @@ import { getCurrentUser, setCurrentUser, getActiveSession } from './services/sto
 import { ScreeningSession, UserProfile, CustomerRecord, UserRole } from '@optiguide/shared';
 
 export default function App() {
-  const [currentRoute, setCurrentRoute] = useState<string>('home');
+  const getInitialRoute = (): string => {
+    if (typeof window === 'undefined') return 'home';
+    const path = window.location.pathname.replace(/^\//, '').toLowerCase();
+    if (path === 'virtual-try-on' || path === 'try-on') return 'virtual-try-on';
+    if (path === 'screening' || path === 'eyewear' || path === 'results' || path === 'shop-dashboard' || path === 'admin-dashboard') {
+      return path;
+    }
+    return 'home';
+  };
+
+  const [currentRoute, setCurrentRoute] = useState<string>(getInitialRoute());
   const [currentUser, setCurrentUserState] = useState<UserProfile | null>(getCurrentUser());
   const [activeSession, setActiveSession] = useState<ScreeningSession | null>(getActiveSession());
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [screeningCustomer, setScreeningCustomer] = useState<CustomerRecord | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+
+  const navigateTo = (route: string) => {
+    setCurrentRoute(route);
+    if (typeof window !== 'undefined') {
+      const targetPath = route === 'home' ? '/' : `/${route}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentRoute(getInitialRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Poll backend health once on mount and sync authenticated user
   useEffect(() => {
@@ -72,23 +102,23 @@ export default function App() {
     setCurrentUserState(updated);
 
     if (role === 'shopkeeper') {
-      setCurrentRoute('shop-dashboard');
+      navigateTo('shop-dashboard');
     } else if (role === 'admin') {
-      setCurrentRoute('admin-dashboard');
+      navigateTo('admin-dashboard');
     }
   };
 
   // Start screening for a specific customer from the shopkeeper kiosk
   const handleStartScreeningForCustomer = (customer: CustomerRecord) => {
     setScreeningCustomer(customer);
-    setCurrentRoute('screening');
+    navigateTo('screening');
   };
 
   // When a screening finishes
   const handleScreeningComplete = (session: ScreeningSession) => {
     setActiveSession(session);
     setScreeningCustomer(null);
-    setCurrentRoute('results');
+    navigateTo('results');
   };
 
   return (
@@ -96,10 +126,7 @@ export default function App() {
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#F7F4EC' }}>
         <Navbar
           currentRoute={currentRoute}
-          onNavigate={(route) => {
-            setCurrentRoute(route);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onNavigate={(route) => navigateTo(route)}
           currentUser={currentUser}
           onSelectRole={handleSelectRole}
           backendOnline={backendOnline}
@@ -109,33 +136,40 @@ export default function App() {
         <main style={{ flex: 1 }}>
           {currentRoute === 'home' && (
             <LandingPage
-              onNavigate={(route) => {
-                setCurrentRoute(route);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onNavigate={(route) => navigateTo(route)}
             />
           )}
 
           {currentRoute === 'screening' && (
             <ScreeningFlowPage
               onComplete={handleScreeningComplete}
-              onCancel={() => setCurrentRoute('home')}
+              onCancel={() => navigateTo('home')}
               customerName={screeningCustomer?.fullName}
               customerPhone={screeningCustomer?.phoneNumber}
+            />
+          )}
+
+          {currentRoute === 'virtual-try-on' && (
+            <VirtualTryOnPage
+              onNavigate={(route) => navigateTo(route)}
+              onSelectProductForCheckout={() => navigateTo('eyewear')}
             />
           )}
 
           {currentRoute === 'results' && activeSession && (
             <ResultsPage
               session={activeSession}
-              onExploreEyewear={() => setCurrentRoute('eyewear')}
-              onNewScreening={() => setCurrentRoute('screening')}
-              onGoHome={() => setCurrentRoute('home')}
+              onExploreEyewear={() => navigateTo('eyewear')}
+              onNewScreening={() => navigateTo('screening')}
+              onGoHome={() => navigateTo('home')}
             />
           )}
 
           {currentRoute === 'eyewear' && (
-            <EyewearPage session={activeSession} />
+            <EyewearPage
+              session={activeSession}
+              onNavigate={(route) => navigateTo(route)}
+            />
           )}
 
           {currentRoute === 'shop-dashboard' && (
@@ -143,7 +177,7 @@ export default function App() {
               onStartScreeningForCustomer={handleStartScreeningForCustomer}
               onViewReport={(session) => {
                 setActiveSession(session);
-                setCurrentRoute('results');
+                navigateTo('results');
               }}
             />
           )}
@@ -165,19 +199,13 @@ export default function App() {
                   ? 'terms'
                   : (currentRoute as any)
               }
-              onNavigate={(route) => {
-                setCurrentRoute(route);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              onNavigate={(route) => navigateTo(route)}
             />
           )}
         </main>
 
         <Footer
-          onNavigate={(route) => {
-            setCurrentRoute(route);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onNavigate={(route) => navigateTo(route)}
         />
 
         <AuthModal

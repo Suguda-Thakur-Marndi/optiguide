@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareRimless" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.12"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left Temple Arm (ultra slim wire) -->
+  <path d="M 125 145 L 45 125 L 35 132 L 125 152 Z" fill="#64748b" opacity="0.6"/>
+  <!-- Right Temple Arm -->
+  <path d="M 675 145 L 755 125 L 765 132 L 675 152 Z" fill="#64748b" opacity="0.6"/>
+
+  <!-- Left Rimless Oval Lens Shape -->
+  <ellipse cx="235" cy="150" rx="100" ry="62" fill="url(#lensGlareRimless)" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+  <ellipse cx="235" cy="150" rx="98" ry="60" fill="none" stroke="rgba(148,163,184,0.4)" stroke-width="1"/>
+
+  <!-- Right Rimless Oval Lens Shape -->
+  <ellipse cx="565" cy="150" rx="100" ry="62" fill="url(#lensGlareRimless)" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+  <ellipse cx="565" cy="150" rx="98" ry="60" fill="none" stroke="rgba(148,163,184,0.4)" stroke-width="1"/>
+
+  <!-- Bridge Arch Mount -->
+  <path d="M 335 148 Q 400 128 465 148" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Compression Bushing & Drill Screws on Bridge -->
+  <circle cx="338" cy="148" r="4" fill="currentColor"/>
+  <circle cx="338" cy="148" r="2" fill="#e2e8f0"/>
+  <circle cx="462" cy="148" r="4" fill="currentColor"/>
+  <circle cx="462" cy="148" r="2" fill="#e2e8f0"/>
+
+  <!-- Temporal Lug Drill Screws -->
+  <circle cx="137" cy="146" r="4" fill="currentColor"/>
+  <circle cx="137" cy="146" r="2" fill="#e2e8f0"/>
+  <circle cx="663" cy="146" r="4" fill="currentColor"/>
+  <circle cx="663" cy="146" r="2" fill="#e2e8f0"/>
+
+  <!-- Nose Pads -->
+  <ellipse cx="348" cy="172" rx="4.5" ry="8.5" fill="rgba(255,255,255,0.8)" stroke="#94a3b8" stroke-width="1"/>
+  <ellipse cx="452" cy="172" rx="4.5" ry="8.5" fill="rgba(255,255,255,0.8)" stroke="#94a3b8" stroke-width="1"/>
+</svg>

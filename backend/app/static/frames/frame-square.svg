@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareSquare" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left Temple -->
+  <path d="M 125 95 L 40 70 L 35 82 L 125 110 Z" fill="#1e293b" opacity="0.8"/>
+  <!-- Right Temple -->
+  <path d="M 675 95 L 760 70 L 765 82 L 675 110 Z" fill="#1e293b" opacity="0.8"/>
+
+  <!-- Left Lens Glare -->
+  <rect x="142" y="86" width="186" height="136" rx="10" fill="url(#lensGlareSquare)"/>
+  <!-- Right Lens Glare -->
+  <rect x="472" y="86" width="186" height="136" rx="10" fill="url(#lensGlareSquare)"/>
+
+  <!-- Square TR90 Frame Rims -->
+  <rect x="125" y="72" width="220" height="164" rx="16" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+  <rect x="455" y="72" width="220" height="164" rx="16" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+
+  <!-- Solid Keyhole Bridge -->
+  <path d="M 335 125 Q 400 110 465 125 Q 400 120 335 125 Z" fill="currentColor"/>
+  <path d="M 345 124 Q 400 115 455 124" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Sculpted Nose Saddles -->
+  <path d="M 342 145 Q 355 170 348 198" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 458 145 Q 445 170 452 198" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+</svg>

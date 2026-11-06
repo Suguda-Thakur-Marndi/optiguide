@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareWayfarer" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Chunky Temples -->
+  <path d="M 120 100 L 40 75 Q 30 72 25 80 L 20 90 L 120 122 Z" fill="#0f172a" opacity="0.85"/>
+  <path d="M 680 100 L 760 75 Q 770 72 775 80 L 780 90 L 680 122 Z" fill="#0f172a" opacity="0.85"/>
+
+  <!-- Trapezoid Lenses (slight downward taper) -->
+  <path d="M 142 95 L 328 100 L 310 205 Q 235 215 160 205 Z" fill="url(#lensGlareWayfarer)"/>
+  <path d="M 472 100 L 658 95 L 640 205 Q 565 215 490 205 Z" fill="url(#lensGlareWayfarer)"/>
+
+  <!-- Left Wayfarer Rim -->
+  <path d="M 120 85 L 340 92 L 320 220 Q 235 230 145 220 Z" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+  <!-- Right Wayfarer Rim -->
+  <path d="M 460 92 L 680 85 L 655 220 Q 565 230 480 220 Z" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+
+  <!-- Bridge -->
+  <path d="M 335 118 Q 400 105 465 118 Q 400 114 335 118 Z" fill="currentColor"/>
+  <path d="M 340 120 Q 400 110 460 120" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Signature Horizontal Silver Diamond Studs -->
+  <ellipse cx="116" cy="98" rx="6" ry="3.5" fill="#e2e8f0"/>
+  <ellipse cx="684" cy="98" rx="6" ry="3.5" fill="#e2e8f0"/>
+
+  <!-- Acetate Nose Saddles -->
+  <path d="M 338 140 Q 350 165 344 190" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 462 140 Q 450 165 456 190" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+</svg>

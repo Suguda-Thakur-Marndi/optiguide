@@ -6,9 +6,10 @@ import { EyewearProduct, ScreeningSession } from '@optiguide/shared';
 interface EyewearPageProps {
   session?: ScreeningSession | null;
   onSelectProduct?: (product: EyewearProduct) => void;
+  onNavigate?: (route: string) => void;
 }
 
-export const EyewearPage: React.FC<EyewearPageProps> = ({ session, onSelectProduct }) => {
+export const EyewearPage: React.FC<EyewearPageProps> = ({ session, onSelectProduct, onNavigate }) => {
   const [products] = useState<EyewearProduct[]>(getStoredProducts());
   const [selectedShape, setSelectedShape] = useState<string>('all');
   const [selectedLens, setSelectedLens] = useState<string>('all');
@@ -121,43 +122,68 @@ export const EyewearPage: React.FC<EyewearPageProps> = ({ session, onSelectProdu
             </span>
           </div>
 
-          {!tryOnActive ? (
-            <button
-              onClick={startCamera}
-              style={{
-                backgroundColor: '#073F35',
-                color: '#F7F4EC',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '10px 20px',
-                fontSize: '0.9375rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <CameraIcon size={18} color="#F7F4EC" />
-              Enable Live Try-On Camera
-            </button>
-          ) : (
-            <button
-              onClick={stopCamera}
-              style={{
-                backgroundColor: '#E9E5DA',
-                border: '1px solid #D7D2C4',
-                borderRadius: '6px',
-                padding: '8px 16px',
-                fontSize: '0.875rem',
-                color: '#A9473E',
-                cursor: 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              Turn Off Camera
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('virtual-try-on')}
+                style={{
+                  backgroundColor: '#0F766E',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px 18px',
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 4px rgba(15, 118, 110, 0.2)',
+                }}
+              >
+                <GlassesIcon size={18} color="#FFFFFF" />
+                Launch Full AR Studio
+              </button>
+            )}
+
+            {!tryOnActive ? (
+              <button
+                onClick={startCamera}
+                style={{
+                  backgroundColor: '#073F35',
+                  color: '#F7F4EC',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px 20px',
+                  fontSize: '0.9375rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <CameraIcon size={18} color="#F7F4EC" />
+                Quick Camera Preview
+              </button>
+            ) : (
+              <button
+                onClick={stopCamera}
+                style={{
+                  backgroundColor: '#E9E5DA',
+                  border: '1px solid #D7D2C4',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  color: '#A9473E',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Turn Off Camera
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Viewport & Overlay */}

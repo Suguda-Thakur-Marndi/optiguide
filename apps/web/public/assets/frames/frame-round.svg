@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareRound" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0284c7" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="metalWire" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="currentColor"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left Temple Arm -->
+  <path d="M 145 140 L 50 115 Q 42 112 38 120 L 32 128 Q 42 122 55 126 L 145 152 Z" fill="#475569" opacity="0.7"/>
+  <!-- Right Temple Arm -->
+  <path d="M 655 140 L 750 115 Q 758 112 762 120 L 768 128 Q 758 122 745 126 L 655 152 Z" fill="#475569" opacity="0.7"/>
+
+  <!-- Left Lens Glare -->
+  <circle cx="235" cy="150" r="82" fill="url(#lensGlareRound)"/>
+  <!-- Right Lens Glare -->
+  <circle cx="565" cy="150" r="82" fill="url(#lensGlareRound)"/>
+
+  <!-- Left Circular Wire Rim -->
+  <circle cx="235" cy="150" r="84" fill="none" stroke="currentColor" stroke-width="8"/>
+  <circle cx="235" cy="150" r="88" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+
+  <!-- Right Circular Wire Rim -->
+  <circle cx="565" cy="150" r="84" fill="none" stroke="currentColor" stroke-width="8"/>
+  <circle cx="565" cy="150" r="88" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+
+  <!-- Arched Keyhole Bridge -->
+  <path d="M 319 146 C 350 102 450 102 481 146" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 323 150 C 355 110 445 110 477 150" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+
+  <!-- Silicone Nose Pads & Arms -->
+  <path d="M 325 155 Q 345 168 340 182" fill="none" stroke="currentColor" stroke-width="3"/>
+  <ellipse cx="342" cy="184" rx="5" ry="9" transform="rotate(-15 342 184)" fill="rgba(255,255,255,0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+
+  <path d="M 475 155 Q 455 168 460 182" fill="none" stroke="currentColor" stroke-width="3"/>
+  <ellipse cx="458" cy="184" rx="5" ry="9" transform="rotate(15 458 184)" fill="rgba(255,255,255,0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+</svg>

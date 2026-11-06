@@ -28,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: t.nav.home },
     { id: 'how-it-works', label: t.nav.howItWorks },
     { id: 'screening', label: t.nav.screening },
+    { id: 'virtual-try-on', label: 'Virtual Try-On' },
     { id: 'eyewear', label: 'Eyewear' },
     { id: 'for-shops', label: t.nav.forShops },
     { id: 'about', label: t.nav.about },

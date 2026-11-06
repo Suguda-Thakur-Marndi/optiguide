@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlare" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="templeShade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0f172a" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#334155" stop-opacity="0.4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left Temple Arm (perspective rear) -->
+  <path d="M 125 105 L 45 80 Q 40 78 35 85 L 30 92 Q 38 88 52 92 L 125 120 Z" fill="url(#templeShade)"/>
+  <!-- Right Temple Arm (perspective rear) -->
+  <path d="M 675 105 L 755 80 Q 760 78 765 85 L 770 92 Q 762 88 748 92 L 675 120 Z" fill="url(#templeShade)"/>
+
+  <!-- Left Lens Glare & Tint -->
+  <rect x="142" y="94" width="186" height="114" rx="14" fill="url(#lensGlare)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+  <!-- Right Lens Glare & Tint -->
+  <rect x="472" y="94" width="186" height="114" rx="14" fill="url(#lensGlare)" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+
+  <!-- Frame Body: Acetate Rectangular -->
+  <!-- Left Rim Outer -->
+  <rect x="125" y="82" width="220" height="138" rx="22" ry="22" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
+  <!-- Right Rim Outer -->
+  <rect x="455" y="82" width="220" height="138" rx="22" ry="22" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
+
+  <!-- Bridge -->
+  <path d="M 335 128 Q 400 112 465 128 Q 400 120 335 128 Z" fill="currentColor"/>
+  <path d="M 345 130 Q 400 118 455 130" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- End-piece Silver Rivet Accents -->
+  <circle cx="118" cy="98" r="2.5" fill="#e2e8f0"/>
+  <circle cx="118" cy="108" r="2.5" fill="#e2e8f0"/>
+  <circle cx="682" cy="98" r="2.5" fill="#e2e8f0"/>
+  <circle cx="682" cy="108" r="2.5" fill="#e2e8f0"/>
+
+  <!-- Nose Pads / Sculpted Acetate Saddles -->
+  <path d="M 342 145 Q 352 165 348 185" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 458 145 Q 448 165 452 185" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+</svg>

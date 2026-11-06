@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth,
     catalog,
+    eyewear,
     health,
     pd,
     professionals,
@@ -22,6 +23,7 @@ api_router.include_router(screening.router, prefix="/screening", tags=["Screenin
 api_router.include_router(professionals.router, prefix="/professionals", tags=["Professionals"])
 api_router.include_router(referrals.router, prefix="/referrals", tags=["Referrals"])
 api_router.include_router(catalog.router, prefix="/catalog", tags=["Catalogue"])
+api_router.include_router(eyewear.router, prefix="/eyewear", tags=["Virtual Try-On & Eyewear"])
 api_router.include_router(shops.router, prefix="/shops", tags=["Shops"])
 api_router.include_router(
     recommendations.router, prefix="/recommendations", tags=["Recommendations"]

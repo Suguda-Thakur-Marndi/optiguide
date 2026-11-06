@@ -186,6 +186,66 @@ class CatalogProduct(Base):
         String(500),
         nullable=True,
     )
+    # Virtual Try-On Asset Calibration & Geometry Metadata
+    try_on_asset_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+    try_on_asset_type: Mapped[str | None] = mapped_column(
+        String(50),
+        default="2d_png",
+        nullable=True,
+    )
+    frame_colors: Mapped[str | None] = mapped_column(
+        String(500),
+        default="#111827:Classic Black,#78350F:Amber Tortoise,#D97706:Polished Gold,#475569:Gunmetal Silver,#1E3A8A:Deep Navy",
+        nullable=True,
+    )
+    left_lens_center_x: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.2875,
+        nullable=True,
+    )
+    left_lens_center_y: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.5,
+        nullable=True,
+    )
+    right_lens_center_x: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.7125,
+        nullable=True,
+    )
+    right_lens_center_y: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.5,
+        nullable=True,
+    )
+    bridge_center_x: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.5,
+        nullable=True,
+    )
+    bridge_center_y: Mapped[float | None] = mapped_column(
+        Float,
+        default=0.48,
+        nullable=True,
+    )
+    asset_scale: Mapped[float] = mapped_column(
+        Float,
+        default=1.0,
+        nullable=False,
+    )
+    asset_rotation_offset: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
+    )
+    asset_version: Mapped[str] = mapped_column(
+        String(20),
+        default="1.0.0",
+        nullable=False,
+    )
     description: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,

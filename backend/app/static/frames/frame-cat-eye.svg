@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareCatEye" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#e11d48" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sleek Temples -->
+  <path d="M 115 88 L 40 65 L 32 75 L 115 105 Z" fill="#881337" opacity="0.7"/>
+  <path d="M 685 88 L 760 65 L 768 75 L 685 105 Z" fill="#881337" opacity="0.7"/>
+
+  <!-- Left Upswept Cat-Eye Lens -->
+  <path d="M 130 92 Q 225 105 325 118 Q 330 185 285 210 Q 215 220 155 200 Q 120 155 130 92 Z" fill="url(#lensGlareCatEye)"/>
+  <!-- Right Upswept Cat-Eye Lens -->
+  <path d="M 670 92 Q 575 105 475 118 Q 470 185 515 210 Q 585 220 645 200 Q 680 155 670 92 Z" fill="url(#lensGlareCatEye)"/>
+
+  <!-- Left Cat-Eye Winged Rim -->
+  <path d="M 110 75 Q 225 95 335 112 Q 345 195 290 225 Q 215 235 145 212 Q 105 160 110 75 Z" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
+  <!-- Right Cat-Eye Winged Rim -->
+  <path d="M 690 75 Q 575 95 465 112 Q 455 195 510 225 Q 585 235 655 212 Q 695 160 690 75 Z" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/>
+
+  <!-- Bridge -->
+  <path d="M 330 120 Q 400 108 470 120 Q 400 114 330 120 Z" fill="currentColor"/>
+  <path d="M 335 122 Q 400 112 465 122" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Nose Pads -->
+  <path d="M 338 140 Q 348 165 342 188" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 462 140 Q 452 165 458 188" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+</svg>

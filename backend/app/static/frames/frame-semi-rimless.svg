@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <linearGradient id="lensGlareSemi" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Temples -->
+  <path d="M 125 108 L 45 85 L 35 95 L 125 120 Z" fill="#334155" opacity="0.6"/>
+  <path d="M 675 108 L 755 85 L 765 95 L 675 120 Z" fill="#334155" opacity="0.6"/>
+
+  <!-- Left Lens -->
+  <path d="M 130 115 Q 130 200 160 215 Q 235 220 310 215 Q 340 200 340 115 Z" fill="url(#lensGlareSemi)"/>
+  <!-- Right Lens -->
+  <path d="M 460 115 Q 460 200 490 215 Q 565 220 640 215 Q 670 200 670 115 Z" fill="url(#lensGlareSemi)"/>
+
+  <!-- Nylon Cord Lower Suspension (Thin line) -->
+  <path d="M 130 118 Q 130 200 160 215 Q 235 220 310 215 Q 340 200 340 118" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <path d="M 460 118 Q 460 200 490 215 Q 565 220 640 215 Q 670 200 670 118" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,2"/>
+
+  <!-- Upper Titanium Brow Bar Left -->
+  <path d="M 115 105 Q 235 90 345 110 L 342 122 Q 235 102 125 118 Z" fill="currentColor"/>
+  <!-- Upper Titanium Brow Bar Right -->
+  <path d="M 455 110 Q 565 90 685 105 L 675 118 Q 565 102 458 122 Z" fill="currentColor"/>
+
+  <!-- Bridge -->
+  <path d="M 338 112 Q 400 98 462 112 L 460 124 Q 400 110 340 124 Z" fill="currentColor"/>
+
+  <!-- Nose Pads -->
+  <ellipse cx="350" cy="155" rx="5" ry="9" fill="rgba(255,255,255,0.7)" stroke="#64748b" stroke-width="1"/>
+  <ellipse cx="450" cy="155" rx="5" ry="9" fill="rgba(255,255,255,0.7)" stroke="#64748b" stroke-width="1"/>
+</svg>

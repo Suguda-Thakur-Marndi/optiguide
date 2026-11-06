@@ -43,6 +43,11 @@ from app.models.screening_audit_event import ScreeningAuditEvent
 from app.models.screening_consent import ScreeningConsent
 from app.models.screening_session import ScreeningSession
 from app.models.session import UserSession
+from app.models.try_on import (
+    TryOnSession,
+    TryOnSnapshot,
+    UserEyewearFavourite,
+)
 from app.models.user import User
 
 __all__ = [
@@ -72,7 +77,10 @@ __all__ = [
     "ScreeningTestResponse",
     "Shop",
     "ShopInventory",
+    "TryOnSession",
+    "TryOnSnapshot",
     "User",
+    "UserEyewearFavourite",
     "UserSession",
     "VisualAcuityAssessment",
 ]

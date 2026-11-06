@@ -14,6 +14,13 @@ import type {
   AdaptiveAcuityStepResponse,
   AdaptiveAcuityVoiceStepResponse,
 } from '@optiguide/shared';
+import type {
+  FrameCategory,
+  FrameTryOnAsset,
+  TryOnSession,
+  TryOnSnapshot,
+  FavouriteItem,
+} from '../types/tryOn';
 /**
  * OptiGuide Web Centralized API Client
  * Fully integrated with FastAPI backend (/api/v1).
@@ -704,6 +711,155 @@ class ApiClient {
 
     return regRes.user;
   }
+
+  // =========================================================================
+  // Virtual Eyewear Try-On API Endpoints (/api/v1/eyewear)
+  // =========================================================================
+
+  /**
+   * Retrieves active eyewear models with AR overlay telemetry and color options.
+   */
+  public async listTryOnFrames(params?: {
+    shape?: string;
+    category?: string;
+    gender?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FrameTryOnAsset[]> {
+    const query = new URLSearchParams();
+    if (params?.shape) query.append('shape', params.shape);
+    if (params?.category) query.append('category', params.category);
+    if (params?.gender) query.append('gender', params.gender);
+    if (params?.search) query.append('search', params.search);
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.offset) query.append('offset', String(params.offset));
+
+    const qs = query.toString();
+    const endpoint = `/api/v1/eyewear/frames${qs ? `?${qs}` : ''}`;
+    return this.request<FrameTryOnAsset[]>(endpoint);
+  }
+
+  /**
+   * Returns available eyewear style and rim categories.
+   */
+  public async listFrameCategories(): Promise<FrameCategory[]> {
+    return this.request<FrameCategory[]>('/api/v1/eyewear/frames/categories');
+  }
+
+  /**
+   * Returns full geometric dimensions, color variants, and AR overlay assets for a frame.
+   */
+  public async getTryOnFrame(frameId: string): Promise<FrameTryOnAsset> {
+    return this.request<FrameTryOnAsset>(`/api/v1/eyewear/frames/${frameId}`);
+  }
+
+  /**
+   * Returns dedicated try-on asset telemetry including lens center and bridge coordinates.
+   */
+  public async getFrameTryOnAssets(frameId: string): Promise<FrameTryOnAsset> {
+    return this.request<FrameTryOnAsset>(`/api/v1/eyewear/frames/${frameId}/try-on-assets`);
+  }
+
+  /**
+   * Initializes an interactive AR session tracking frame selections.
+   */
+  public async createTryOnSession(payload?: {
+    screening_session_id?: string;
+    selected_product_id?: string;
+    selected_color?: string;
+    selected_scale?: number;
+    selected_offset_y?: number;
+    camera_facing?: 'user' | 'environment';
+    device_type?: string;
+  }): Promise<TryOnSession> {
+    return this.request<TryOnSession>('/api/v1/eyewear/try-on/sessions', {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+  }
+
+  /**
+   * Retrieves active session state and current frame selection.
+   */
+  public async getTryOnSession(sessionId: string): Promise<TryOnSession> {
+    return this.request<TryOnSession>(`/api/v1/eyewear/try-on/sessions/${sessionId}`);
+  }
+
+  /**
+   * Updates the active frame, color, scale, and offset for the AR session.
+   */
+  public async selectTryOnFrame(
+    sessionId: string,
+    payload: {
+      product_id: string;
+      selected_color?: string;
+      selected_scale?: number;
+      selected_offset_y?: number;
+    }
+  ): Promise<TryOnSession> {
+    return this.request<TryOnSession>(`/api/v1/eyewear/try-on/sessions/${sessionId}/select-frame`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Adds or removes the selected frame from the authenticated customer's favourites list.
+   */
+  public async toggleFavouriteFrame(
+    sessionId: string,
+    payload: {
+      product_id: string;
+      selected_color?: string;
+      notes?: string;
+    }
+  ): Promise<{ action: 'added' | 'removed'; favourite_id?: string; message: string }> {
+    return this.request<{ action: 'added' | 'removed'; favourite_id?: string; message: string }>(
+      `/api/v1/eyewear/try-on/sessions/${sessionId}/favourite`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  /**
+   * Retrieves saved frames for the authenticated patient or shopper.
+   */
+  public async listFavouriteFrames(): Promise<FavouriteItem[]> {
+    return this.request<FavouriteItem[]>('/api/v1/eyewear/try-on/favourites');
+  }
+
+  /**
+   * Registers a user-initiated try-on snapshot record.
+   */
+  public async recordTryOnSnapshot(
+    sessionId: string,
+    payload: {
+      product_id?: string;
+      selected_color?: string;
+      title?: string;
+      face_detected?: boolean;
+    }
+  ): Promise<TryOnSnapshot> {
+    return this.request<TryOnSnapshot>(`/api/v1/eyewear/try-on/sessions/${sessionId}/capture`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Gracefully closes the AR try-on session and releases server resources.
+   */
+  public async endTryOnSession(sessionId: string): Promise<{ status: string; session_id: string; message: string }> {
+    return this.request<{ status: string; session_id: string; message: string }>(
+      `/api/v1/eyewear/try-on/sessions/${sessionId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  }
 }
 
 
@@ -712,6 +868,16 @@ export const apiClient = new ApiClient();
 // Standalone exports matching previous contracts
 export const checkBackendHealth = () => apiClient.checkBackendHealth();
 export const checkDatabaseHealth = () => apiClient.checkDatabaseHealth();
+
+export const listTryOnFrames = (params?: any) => apiClient.listTryOnFrames(params);
+export const listFrameCategories = () => apiClient.listFrameCategories();
+export const getTryOnFrame = (frameId: string) => apiClient.getTryOnFrame(frameId);
+export const createTryOnSession = (payload?: any) => apiClient.createTryOnSession(payload);
+export const selectTryOnFrame = (sessionId: string, payload: any) => apiClient.selectTryOnFrame(sessionId, payload);
+export const toggleFavouriteFrame = (sessionId: string, payload: any) => apiClient.toggleFavouriteFrame(sessionId, payload);
+export const listFavouriteFrames = () => apiClient.listFavouriteFrames();
+export const recordTryOnSnapshot = (sessionId: string, payload: any) => apiClient.recordTryOnSnapshot(sessionId, payload);
+export const endTryOnSession = (sessionId: string) => apiClient.endTryOnSession(sessionId);
 
 export type {
   VisualAcuityCreateRequest,
@@ -728,4 +894,9 @@ export type {
   AdaptiveAcuityResultResponse,
   AdaptiveAcuityStepResponse,
   AdaptiveAcuityVoiceStepResponse,
+  FrameCategory,
+  FrameTryOnAsset,
+  TryOnSession,
+  TryOnSnapshot,
+  FavouriteItem,
 };
