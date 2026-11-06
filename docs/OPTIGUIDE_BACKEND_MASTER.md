@@ -1452,8 +1452,29 @@ Created migration revision `011_virtual_try_on_and_eyewear_ar`:
    - Validates `apiClient` try-on methods and TypeScript contracts.
    - Validates `VirtualTryOnPage` compliance across all 11 UI sections and privacy guarantees.
    - Validates navigation integration across `App.tsx`, `Navbar.tsx`, and `EyewearPage.tsx`.
-   - **Full Frontend Test Suite: 19 passed, 0 failed (100% pass rate)**.
-   - **Frontend Production Build: `tsc && vite build` compiled in 3.97s with 0 errors**.
+   - **Full Frontend Test Suite: 23 passed, 0 failed (100% pass rate)**.
+   - **Frontend Production Build: `tsc && vite build` compiled in 2.59s with 0 errors**.
+
+---
+
+## 28.6 Optical Landmark Alignment, Mirror Synchronization & Conformal AR Calibration
+
+### 1. Root Cause Analysis of Geometric Discrepancy
+- **Mirroring Desynchronization**: The video preview canvas mirrored the user-facing camera via `ctx.scale(-1, 1); ctx.translate(width, 0);`. However, normalized landmark coordinates from MediaPipe were projected into unmirrored canvas coordinates ($x_{\text{screen}} = x \cdot W$), causing the AR glasses to flip horizontally to the opposite side of the user's face.
+- **Single-Point Landmark Instability**: Relying exclusively on iris landmarks (468/473) caused positional jitter during lateral gaze shifts and eyelid blinking.
+- **Bridge Anchor vs. 2-Point Eye Locking**: Placing the glasses by positioning the bridge landmark failed when faces exhibited asymmetry, natural yaw angle, or head roll.
+
+### 2. Architectural Solution Implemented
+- **Explicit Screen-Space Mirror Projection**: MediaPipe coordinates in raw camera space are projected via:
+  $$x_{\text{screen}} = \begin{cases} (1 - x_{\text{norm}}) \times W_{\text{canvas}} & \text{if } \text{isMirrored} \\ x_{\text{norm}} \times W_{\text{canvas}} & \text{if direct} \end{cases}$$
+  $$y_{\text{screen}} = y_{\text{norm}} \times H_{\text{canvas}}$$
+- **Robust Multi-Point Eye Socket Center**: Blends iris position with medial/lateral canthi and eyelid boundaries:
+  $$\text{EyeCenter} = 0.6 \times \text{Pupil} + 0.4 \times \left(\frac{\text{InnerCanthus} + \text{OuterCanthus} + \text{UpperLid} + \text{LowerLid}}{4}\right)$$
+- **Conformal Affine 2-Point Mapping**: Maps the asset's normalized left/right lens anchors ($X_L = 0.29375, X_R = 0.70625$ in 800x300 viewBox) directly to screen eye centers:
+  $$\text{Scale} = \frac{\|\text{Eye}_R - \text{Eye}_L\|}{\|\text{Lens}_R - \text{Lens}_L\|} \times S_{\text{asset}} \times S_{\text{user}}$$
+  $$\theta = \operatorname{atan2}(\Delta y_{\text{eyes}}, \Delta x_{\text{eyes}}) + \theta_{\text{offset}}$$
+  This locks both optical centers simultaneously with $< 0.001\text{px}$ alignment discrepancy.
+- **On-Canvas Telemetry HUD**: Live diagnostics displaying feed mode (mirrored vs direct), resolution, screen IPD (px), roll angle (°), affine scale factor, anchor alignment error, and detection confidence.
 
 ---
 

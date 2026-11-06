@@ -49,9 +49,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#92400e', name: 'Tortoise Brown' },
       { hex_code: '#1e3a8a', name: 'Midnight Navy' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.48,
@@ -84,9 +84,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#111827', name: 'Onyx Black' },
       { hex_code: '#64748b', name: 'Pewter Silver' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.46,
@@ -119,9 +119,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#64748b', name: 'Gunmetal Grey' },
       { hex_code: '#111827', name: 'Matte Black' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.52,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.52,
     bridge_center_x: 0.5,
     bridge_center_y: 0.42,
@@ -154,9 +154,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#334155', name: 'Charcoal' },
       { hex_code: '#1e3a8a', name: 'Navy Blue' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.48,
@@ -189,9 +189,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#111827', name: 'Gloss Black' },
       { hex_code: '#92400e', name: 'Havana Tortoise' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.46,
@@ -223,9 +223,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#111827', name: 'Matte Black' },
       { hex_code: '#92400e', name: 'Dark Amber' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.48,
@@ -257,9 +257,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#111827', name: 'Black & Gold' },
       { hex_code: '#92400e', name: 'Tortoise & Silver' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.48,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.48,
     bridge_center_x: 0.5,
     bridge_center_y: 0.45,
@@ -291,9 +291,9 @@ const FALLBACK_FRAMES: FrameTryOnAsset[] = [
       { hex_code: '#64748b', name: 'Titanium Silver' },
       { hex_code: '#eab308', name: 'Rose Gold' },
     ],
-    left_lens_center_x: 0.2875,
+    left_lens_center_x: 0.29375,
     left_lens_center_y: 0.5,
-    right_lens_center_x: 0.7125,
+    right_lens_center_x: 0.70625,
     right_lens_center_y: 0.5,
     bridge_center_x: 0.5,
     bridge_center_y: 0.48,
@@ -338,6 +338,16 @@ export const VirtualTryOnPage: React.FC<VirtualTryOnPageProps> = ({
   const [faceState, setFaceState] = useState<FaceTrackingState>({
     detected: false,
     confidence: 0,
+    isMirrored: true,
+    screenLeftEyeCenter: { x: 0, y: 0 },
+    screenRightEyeCenter: { x: 0, y: 0 },
+    screenBridgeCenter: { x: 0, y: 0 },
+    screenLeftTemple: { x: 0, y: 0 },
+    screenRightTemple: { x: 0, y: 0 },
+    screenLeftEyeCornerInner: { x: 0, y: 0 },
+    screenLeftEyeCornerOuter: { x: 0, y: 0 },
+    screenRightEyeCornerInner: { x: 0, y: 0 },
+    screenRightEyeCornerOuter: { x: 0, y: 0 },
     leftEyeCenter: { x: 0, y: 0 },
     rightEyeCenter: { x: 0, y: 0 },
     bridgeCenter: { x: 0, y: 0 },
@@ -514,8 +524,9 @@ export const VirtualTryOnPage: React.FC<VirtualTryOnPageProps> = ({
       }
 
       // 1. Draw live camera video feed
+      const isMirrored = cameraFacing === 'user';
       ctx.save();
-      if (cameraFacing === 'user') {
+      if (isMirrored) {
         // Mirror selfie view for natural mirror experience
         ctx.translate(width, 0);
         ctx.scale(-1, 1);
@@ -525,8 +536,8 @@ export const VirtualTryOnPage: React.FC<VirtualTryOnPageProps> = ({
       }
       ctx.restore();
 
-      // 2. Track Face Landmarks
-      const tracking = faceTracker.detectLandmarks(video, width, height);
+      // 2. Track Face Landmarks with synchronized mirroring
+      const tracking = faceTracker.detectLandmarks(video, width, height, isMirrored);
       setFaceState(tracking);
 
       // 3. Render AR Glasses Overlay
@@ -598,11 +609,17 @@ export const VirtualTryOnPage: React.FC<VirtualTryOnPageProps> = ({
     if (!video || !selectedFrame) return;
 
     try {
-      const dataUrl = glassesRenderer.captureSnapshot(video, faceState, selectedFrame, {
-        selectedColor,
-        userScale,
-        userOffsetY,
-      });
+      const dataUrl = glassesRenderer.captureSnapshot(
+        video,
+        faceState,
+        selectedFrame,
+        {
+          selectedColor,
+          userScale,
+          userOffsetY,
+        },
+        cameraFacing === 'user'
+      );
 
       setCapturedSnapshot(dataUrl);
 

@@ -2,18 +2,21 @@ import type {
   FaceTrackingState,
   FrameTryOnAsset,
   RenderTransform,
+  Point2D,
 } from '../types/tryOn';
 
 /**
  * OptiGuide Real-Time AR Glasses Canvas Rendering Engine
  *
- * Key Capabilities:
- * - Geometric alignment of glasses bridge to detected facial nose bridge
- * - Interpupillary distance (IPD) based proportional scaling
- * - 2D Roll angle rotation transformation
- * - Dynamic color tinting via vector SVG recoloring & offscreen compositing
- * - High-speed image caching for smooth 60 FPS rendering
- * - High-resolution snapshot capture combining camera feed and AR frame
+ * Conformal Affine 2-Point Eye Anchoring:
+ * - Maps the frame asset's left and right optical lens centers directly to the user's
+ *   detected screen left and right eye centers.
+ * - Uses exact Euclidean distance between eyes (interpupillary distance - IPD) to compute
+ *   proportional scaling without arbitrary CSS offsets.
+ * - Rotates along the eye baseline angle (roll) to maintain true horizontal alignment.
+ * - Supports mirrored (selfie) and unmirrored (environment) views identically.
+ * - Offscreen SVG dynamic tinting with client-side caching for 60 FPS performance.
+ * - Comprehensive clinical and diagnostic HUD telemetry in debug mode.
  */
 
 export interface GlassesRenderOptions {
@@ -23,8 +26,8 @@ export interface GlassesRenderOptions {
   showDebugLandmarks?: boolean;
 }
 
-const ASSET_NATURAL_WIDTH = 800;
-const ASSET_NATURAL_HEIGHT = 300;
+export const ASSET_NATURAL_WIDTH = 800;
+export const ASSET_NATURAL_HEIGHT = 300;
 
 export class GlassesRenderer {
   private imageCache = new Map<string, HTMLImageElement>();
@@ -108,7 +111,8 @@ export class GlassesRenderer {
   }
 
   /**
-   * Computes the geometric transformation matrix parameters for the glasses overlay.
+   * Calculates the 2-point conformal affine transformation mapping glasses lens anchors
+   * to detected eye centers.
    */
   public calculateTransform(
     faceState: FaceTrackingState,
@@ -124,37 +128,99 @@ export class GlassesRenderer {
     const userScale = options.userScale ?? 1.0;
     const userOffsetY = options.userOffsetY ?? 0.0;
 
-    // Asset reference coordinates
-    const leftLensX = frame.left_lens_center_x ?? 0.2875;
-    const rightLensX = frame.right_lens_center_x ?? 0.7125;
+    // 1. Detected eyes on screen (guaranteed screenLeftEye.x <= screenRightEye.x)
+    const eyeL = faceState.screenLeftEyeCenter;
+    const eyeR = faceState.screenRightEyeCenter;
 
-    const lensSpanNorm = Math.abs(rightLensX - leftLensX);
-    if (lensSpanNorm <= 0.01) {
+    const dxEye = eyeR.x - eyeL.x;
+    const dyEye = eyeR.y - eyeL.y;
+    const distEye = Math.hypot(dxEye, dyEye);
+
+    if (distEye <= 1) {
       return null;
     }
 
-    // Target frame pixel width matching face IPD
-    // frame.asset_scale typically 1.0
+    // Base eye angle on screen (roll)
+    const rollAngle = Math.atan2(dyEye, dxEye);
+    const rotation = rollAngle + (frame.asset_rotation_offset ?? 0);
+
+    // Target midpoint on screen between the eyes (with optional user vertical trim)
+    const midEyeScreenX = (eyeL.x + eyeR.x) * 0.5;
+    const midEyeScreenY = (eyeL.y + eyeR.y) * 0.5 + userOffsetY;
+
+    // 2. Normalized asset anchor points relative to 800x300 natural canvas
+    const leftLensNormX = frame.left_lens_center_x ?? 0.29375;
+    const leftLensNormY = frame.left_lens_center_y ?? 0.5;
+    const rightLensNormX = frame.right_lens_center_x ?? 0.70625;
+    const rightLensNormY = frame.right_lens_center_y ?? 0.5;
+    const bridgeNormX = frame.bridge_center_x ?? 0.5;
+    const bridgeNormY = frame.bridge_center_y ?? 0.48;
+
+    // Asset anchor coordinates in natural asset pixels
+    const leftLensAsset: Point2D = {
+      x: leftLensNormX * ASSET_NATURAL_WIDTH,
+      y: leftLensNormY * ASSET_NATURAL_HEIGHT,
+    };
+    const rightLensAsset: Point2D = {
+      x: rightLensNormX * ASSET_NATURAL_WIDTH,
+      y: rightLensNormY * ASSET_NATURAL_HEIGHT,
+    };
+    const bridgeAsset: Point2D = {
+      x: bridgeNormX * ASSET_NATURAL_WIDTH,
+      y: bridgeNormY * ASSET_NATURAL_HEIGHT,
+    };
+
+    // Asset optical lens span
+    const dxAsset = rightLensAsset.x - leftLensAsset.x;
+    const dyAsset = rightLensAsset.y - leftLensAsset.y;
+    const distAsset = Math.hypot(dxAsset, dyAsset);
+
+    if (distAsset <= 1) {
+      return null;
+    }
+
+    // Midpoint between the two lenses in asset space
+    const midLensAssetX = (leftLensAsset.x + rightLensAsset.x) * 0.5;
+    const midLensAssetY = (leftLensAsset.y + rightLensAsset.y) * 0.5;
+
+    // 3. Conformal scaling factor: maps asset lens span exactly to face eye span
     const assetScale = frame.asset_scale ?? 1.0;
-    const targetWidth =
-      (faceState.interpupillaryDistancePx / lensSpanNorm) * assetScale * userScale;
-    const aspectRatio = ASSET_NATURAL_HEIGHT / ASSET_NATURAL_WIDTH;
-    const targetHeight = targetWidth * aspectRatio;
+    const finalScale = (distEye / distAsset) * assetScale * userScale;
 
-    // Bridge anchor coordinate on screen
-    const anchorScreenX = faceState.bridgeCenter.x;
-    const anchorScreenY = faceState.bridgeCenter.y + userOffsetY;
+    // Rendered frame dimensions
+    const renderedWidth = ASSET_NATURAL_WIDTH * finalScale;
+    const renderedHeight = ASSET_NATURAL_HEIGHT * finalScale;
 
-    // Rotation angle
-    const rotation = faceState.rollAngleRad + (frame.asset_rotation_offset ?? 0);
+    // 4. Helper to project any asset anchor point to screen space
+    const projectAssetAnchor = (anchor: Point2D): Point2D => {
+      const relX = (anchor.x - midLensAssetX) * finalScale;
+      const relY = (anchor.y - midLensAssetY) * finalScale;
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      return {
+        x: midEyeScreenX + (relX * cos - relY * sin),
+        y: midEyeScreenY + (relX * sin + relY * cos),
+      };
+    };
+
+    const projectedLensLeft = projectAssetAnchor(leftLensAsset);
+    const projectedLensRight = projectAssetAnchor(rightLensAsset);
+    const projectedBridge = projectAssetAnchor(bridgeAsset);
 
     return {
-      x: anchorScreenX,
-      y: anchorScreenY,
-      width: targetWidth,
-      height: targetHeight,
+      centerScreenX: midEyeScreenX,
+      centerScreenY: midEyeScreenY,
+      scale: finalScale,
       rotation,
-      scale: userScale,
+      width: renderedWidth,
+      height: renderedHeight,
+      projectedLensLeft,
+      projectedLensRight,
+      projectedBridge,
+
+      // Backwards compatibility aliases
+      x: midEyeScreenX,
+      y: midEyeScreenY,
     };
   }
 
@@ -193,19 +259,24 @@ export class GlassesRenderer {
     if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
       ctx.save();
 
-      // Translate to bridge anchor
-      ctx.translate(transform.x, transform.y);
+      // Translate to the screen midpoint of the eyes and rotate along the face roll axis
+      ctx.translate(transform.centerScreenX, transform.centerScreenY);
       ctx.rotate(transform.rotation);
 
-      // In the asset coordinate system, the bridge is at (bridge_center_x, bridge_center_y)
-      const bridgeNormX = frame.bridge_center_x ?? 0.5;
-      const bridgeNormY = frame.bridge_center_y ?? 0.48;
+      // Midpoint between the two lenses in asset space
+      const leftLensNormX = frame.left_lens_center_x ?? 0.29375;
+      const leftLensNormY = frame.left_lens_center_y ?? 0.5;
+      const rightLensNormX = frame.right_lens_center_x ?? 0.70625;
+      const rightLensNormY = frame.right_lens_center_y ?? 0.5;
 
-      const drawOffsetX = -bridgeNormX * transform.width;
-      const drawOffsetY = -bridgeNormY * transform.height;
+      const midLensNormX = (leftLensNormX + rightLensNormX) * 0.5;
+      const midLensNormY = (leftLensNormY + rightLensNormY) * 0.5;
 
-      // Draw tinted frame image with subtle drop shadow for depth realism
-      ctx.shadowColor = 'rgba(15, 23, 42, 0.25)';
+      const drawOffsetX = -midLensNormX * transform.width;
+      const drawOffsetY = -midLensNormY * transform.height;
+
+      // Draw subtle optical drop shadow for natural depth
+      ctx.shadowColor = 'rgba(15, 23, 42, 0.28)';
       ctx.shadowBlur = Math.max(4, transform.width * 0.015);
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = Math.max(2, transform.height * 0.02);
@@ -218,45 +289,144 @@ export class GlassesRenderer {
       this.preloadFrame(frame, color);
     }
 
-    // Optional debug landmark rendering for clinical verification
+    // Diagnostic HUD and calibration markers in debug mode
     if (options.showDebugLandmarks) {
-      this.drawDebugLandmarks(ctx, faceState);
+      this.drawDebugLandmarks(ctx, faceState, transform);
     }
   }
 
   /**
-   * Draws tracking alignment markers (pupils, bridge, face width) for diagnostic inspection.
+   * Draws diagnostic alignment markers and clinical telemetry HUD:
+   * - Green circles at detected screen eye centers
+   * - Cyan dots at eye inner & outer corners
+   * - Blue circle at detected nasal bridge
+   * - Yellow circles at projected glasses lens anchors (which overlay green eye centers)
+   * - Dashed eye baseline connecting eye centers
+   * - Clinical telemetry HUD box with IPD, roll angle, scale factor, resolution, mirroring status
    */
-  public drawDebugLandmarks(ctx: CanvasRenderingContext2D, faceState: FaceTrackingState): void {
+  public drawDebugLandmarks(
+    ctx: CanvasRenderingContext2D,
+    faceState: FaceTrackingState,
+    transform?: RenderTransform | null
+  ): void {
     ctx.save();
 
-    // Pupil points
-    ctx.fillStyle = '#10b981'; // Teal
+    // 1. Dashed IPD baseline connecting eye centers
+    ctx.strokeStyle = 'rgba(14, 165, 233, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(faceState.screenLeftEyeCenter.x, faceState.screenLeftEyeCenter.y);
+    ctx.lineTo(faceState.screenRightEyeCenter.x, faceState.screenRightEyeCenter.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 2. Cyan dots at eye corners (inner & outer canthi)
+    ctx.fillStyle = '#06b6d4'; // Cyan
+    const corners = [
+      faceState.screenLeftEyeCornerInner,
+      faceState.screenLeftEyeCornerOuter,
+      faceState.screenRightEyeCornerInner,
+      faceState.screenRightEyeCornerOuter,
+    ].filter((pt): pt is Point2D => Boolean(pt && pt.x > 0));
+
+    corners.forEach((pt) => {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    });
+
+    // 3. Green circles at detected screen eye centers
+    ctx.fillStyle = '#10b981'; // Emerald Green
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
 
-    [faceState.leftEyeCenter, faceState.rightEyeCenter].forEach((pt) => {
+    [faceState.screenLeftEyeCenter, faceState.screenRightEyeCenter].forEach((pt) => {
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
+      ctx.arc(pt.x, pt.y, 5, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
     });
 
-    // Bridge center
-    ctx.fillStyle = '#0284c7'; // Blue
+    // 4. Blue circle at detected nasal bridge
+    ctx.fillStyle = '#0284c7'; // Sky Blue
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(faceState.bridgeCenter.x, faceState.bridgeCenter.y, 5, 0, 2 * Math.PI);
+    ctx.arc(faceState.screenBridgeCenter.x, faceState.screenBridgeCenter.y, 5, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
 
-    // Connecting IPD baseline
-    ctx.strokeStyle = 'rgba(14, 165, 233, 0.6)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
+    // 5. Yellow circles at projected glasses anchors (if transform provided)
+    let alignmentErrorPx = 0;
+    if (transform) {
+      ctx.fillStyle = '#eab308'; // Amber Yellow
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+
+      [transform.projectedLensLeft, transform.projectedLensRight].forEach((pt) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      // Projected bridge
+      ctx.fillStyle = '#f97316'; // Orange
+      ctx.beginPath();
+      ctx.arc(transform.projectedBridge.x, transform.projectedBridge.y, 4, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+
+      // Calculate lens-to-eye alignment discrepancy in screen pixels
+      const errL = Math.hypot(
+        faceState.screenLeftEyeCenter.x - transform.projectedLensLeft.x,
+        faceState.screenLeftEyeCenter.y - transform.projectedLensLeft.y
+      );
+      const errR = Math.hypot(
+        faceState.screenRightEyeCenter.x - transform.projectedLensRight.x,
+        faceState.screenRightEyeCenter.y - transform.projectedLensRight.y
+      );
+      alignmentErrorPx = (errL + errR) * 0.5;
+    }
+
+    // 6. On-Canvas Telemetry HUD Box
+    const hudX = 14;
+    const hudY = 14;
+    const hudW = 270;
+    const hudH = 145;
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; // Dark slate background
+    ctx.strokeStyle = '#0284c7'; // Sky border
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(faceState.leftEyeCenter.x, faceState.leftEyeCenter.y);
-    ctx.lineTo(faceState.rightEyeCenter.x, faceState.rightEyeCenter.y);
+    ctx.roundRect(hudX, hudY, hudW, hudH, 8);
+    ctx.fill();
     ctx.stroke();
+
+    // Telemetry text rows
+    ctx.fillStyle = '#38bdf8'; // Sky light
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText('OPTIGUIDE AR ALIGNMENT HUD', hudX + 12, hudY + 20);
+
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#f8fafc';
+    const rollDeg = (faceState.rollAngleRad * 180) / Math.PI;
+    const ipdPx = faceState.interpupillaryDistancePx.toFixed(1);
+    const rollStr = `${rollDeg >= 0 ? '+' : ''}${rollDeg.toFixed(1)}°`;
+    const mirrorMode = faceState.isMirrored ? 'Mirrored (Selfie)' : 'Direct (Back)';
+    const scaleStr = transform ? transform.scale.toFixed(3) : '1.000';
+    const resStr = `${ctx.canvas.width}x${ctx.canvas.height}px`;
+    const confStr = `${Math.round(faceState.confidence * 100)}%`;
+    const errStr = alignmentErrorPx < 0.1 ? '< 0.1 px (Locked)' : `${alignmentErrorPx.toFixed(1)} px`;
+
+    ctx.fillText(`• Feed Mode:     ${mirrorMode}`, hudX + 12, hudY + 38);
+    ctx.fillText(`• Canvas Res:    ${resStr}`, hudX + 12, hudY + 53);
+    ctx.fillText(`• Screen IPD:    ${ipdPx} px`, hudX + 12, hudY + 68);
+    ctx.fillText(`• Roll Angle:    ${rollStr}`, hudX + 12, hudY + 83);
+    ctx.fillText(`• Affine Scale:  ${scaleStr}x`, hudX + 12, hudY + 98);
+    ctx.fillText(`• Anchor Error:  ${errStr}`, hudX + 12, hudY + 113);
+    ctx.fillText(`• Confidence:    ${confStr}`, hudX + 12, hudY + 128);
 
     ctx.restore();
   }
@@ -268,7 +438,8 @@ export class GlassesRenderer {
     video: HTMLVideoElement,
     faceState: FaceTrackingState,
     frame: FrameTryOnAsset,
-    options: GlassesRenderOptions = {}
+    options: GlassesRenderOptions = {},
+    isMirrored?: boolean
   ): string {
     const offscreen = document.createElement('canvas');
     const width = video.videoWidth || 1280;
@@ -281,40 +452,56 @@ export class GlassesRenderer {
       throw new Error('Unable to obtain 2D canvas context for snapshot capture');
     }
 
-    // 1. Draw raw video feed
-    // Mirror horizontally if user-facing camera
+    const mirrorActive = isMirrored !== undefined ? isMirrored : faceState.isMirrored;
+
+    // 1. Draw raw video feed matching mirror mode
     ctx.save();
-    ctx.translate(width, 0);
-    ctx.scale(-1, 1);
+    if (mirrorActive) {
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, width, height);
     ctx.restore();
 
-    // 2. Compute face state scaled to snapshot canvas dimensions
-    const scaleX = width / (video.clientWidth || width);
-    const scaleY = height / (video.clientHeight || height);
+    // 2. Render AR glasses overlay if face detected
+    if (faceState.detected) {
+      // Determine if face state was computed at a different canvas scale
+      const currentCanvasWidth = video.clientWidth > 0 ? video.clientWidth : width;
+      const currentCanvasHeight = video.clientHeight > 0 ? video.clientHeight : height;
 
-    const scaledFaceState: FaceTrackingState = {
-      ...faceState,
-      leftEyeCenter: {
-        x: faceState.leftEyeCenter.x * scaleX,
-        y: faceState.leftEyeCenter.y * scaleY,
-      },
-      rightEyeCenter: {
-        x: faceState.rightEyeCenter.x * scaleX,
-        y: faceState.rightEyeCenter.y * scaleY,
-      },
-      bridgeCenter: {
-        x: faceState.bridgeCenter.x * scaleX,
-        y: faceState.bridgeCenter.y * scaleY,
-      },
-      interpupillaryDistancePx: faceState.interpupillaryDistancePx * scaleX,
-      faceWidthPx: faceState.faceWidthPx * scaleX,
-    };
+      let scaledFaceState = faceState;
+      if (Math.abs(currentCanvasWidth - width) > 2 || Math.abs(currentCanvasHeight - height) > 2) {
+        const sx = width / currentCanvasWidth;
+        const sy = height / currentCanvasHeight;
 
-    // 3. Render AR glasses overlay
-    this.renderOverlay(ctx, scaledFaceState, frame, options);
+        const scalePt = (pt: Point2D): Point2D => ({ x: pt.x * sx, y: pt.y * sy });
 
-    // 4. Return high-quality PNG data URI
+        scaledFaceState = {
+          ...faceState,
+          isMirrored: mirrorActive,
+          screenLeftEyeCenter: scalePt(faceState.screenLeftEyeCenter),
+          screenRightEyeCenter: scalePt(faceState.screenRightEyeCenter),
+          screenBridgeCenter: scalePt(faceState.screenBridgeCenter),
+          screenLeftTemple: scalePt(faceState.screenLeftTemple),
+          screenRightTemple: scalePt(faceState.screenRightTemple),
+          screenLeftEyeCornerInner: scalePt(faceState.screenLeftEyeCornerInner),
+          screenLeftEyeCornerOuter: scalePt(faceState.screenLeftEyeCornerOuter),
+          screenRightEyeCornerInner: scalePt(faceState.screenRightEyeCornerInner),
+          screenRightEyeCornerOuter: scalePt(faceState.screenRightEyeCornerOuter),
+          leftEyeCenter: scalePt(faceState.leftEyeCenter),
+          rightEyeCenter: scalePt(faceState.rightEyeCenter),
+          bridgeCenter: scalePt(faceState.bridgeCenter),
+          leftTemple: scalePt(faceState.leftTemple),
+          rightTemple: scalePt(faceState.rightTemple),
+          interpupillaryDistancePx: faceState.interpupillaryDistancePx * sx,
+          faceWidthPx: faceState.faceWidthPx * sx,
+        };
+      }
+
+      this.renderOverlay(ctx, scaledFaceState, frame, options);
+    }
+
+    // 3. Return high-quality PNG data URI
     return offscreen.toDataURL('image/png', 0.95);
   }
 }

@@ -116,7 +116,7 @@ class TryOnService:
     def get_frame(cls, db: Session, frame_id: uuid.UUID) -> FrameTryOnAssetResponse:
         product = TryOnRepository.get_frame(db, frame_id)
         if not product or not product.is_active:
-            raise EntityNotFoundException(f"Eyewear frame '{frame_id}' not found.")
+            raise EntityNotFoundException("Eyewear frame", frame_id)
         return cls.format_frame_response(product)
 
     @staticmethod
@@ -168,7 +168,7 @@ class TryOnService:
     def get_session(cls, db: Session, session_id: uuid.UUID) -> TryOnSessionResponse:
         session = TryOnRepository.get_session(db, session_id)
         if not session or not session.is_active:
-            raise EntityNotFoundException(f"Try-on session '{session_id}' not found or inactive.")
+            raise EntityNotFoundException("Try-on session", session_id)
         return TryOnSessionResponse.model_validate(session)
 
     @classmethod
@@ -180,7 +180,7 @@ class TryOnService:
     ) -> TryOnSessionResponse:
         session = TryOnRepository.get_session(db, session_id)
         if not session or not session.is_active:
-            raise EntityNotFoundException(f"Try-on session '{session_id}' not found.")
+            raise EntityNotFoundException("Try-on session", session_id)
 
         product = TryOnRepository.get_frame(db, payload.product_id)
         if not product or not product.is_active:
@@ -217,7 +217,7 @@ class TryOnService:
     ) -> dict:
         product = TryOnRepository.get_frame(db, product_id)
         if not product:
-            raise EntityNotFoundException(f"Eyewear frame '{product_id}' not found.")
+            raise EntityNotFoundException("Eyewear frame", product_id)
 
         fav, is_added = TryOnRepository.toggle_favourite(
             db=db,
@@ -228,6 +228,7 @@ class TryOnService:
         )
         return {
             "is_favourite": is_added,
+            "action": "added" if is_added else "removed",
             "product_id": str(product_id),
             "favourite_id": str(fav.id) if fav else None,
             "message": "Added to favourites." if is_added else "Removed from favourites.",
@@ -263,7 +264,7 @@ class TryOnService:
     ) -> TryOnSnapshotResponse:
         session = TryOnRepository.get_session(db, session_id)
         if not session or not session.is_active:
-            raise EntityNotFoundException(f"Try-on session '{session_id}' not found.")
+            raise EntityNotFoundException("Try-on session", session_id)
 
         snapshot = TryOnRepository.record_snapshot(
             db=db,

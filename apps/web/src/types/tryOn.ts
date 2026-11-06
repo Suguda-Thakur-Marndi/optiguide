@@ -11,6 +11,20 @@ export interface FrameCategory {
   is_active: boolean;
 }
 
+/**
+ * Physical geometry and AR anchor metadata for an optical frame model.
+ * All normalized coordinates [0..1] are defined relative to the natural asset viewBox (800x300).
+ */
+export interface TryOnFrameAnchors {
+  leftLensCenter: Point2D;
+  rightLensCenter: Point2D;
+  bridgeCenter: Point2D;
+  frameWidth: number;
+  frameHeight: number;
+  rotationOffset: number;
+  scaleFactor: number;
+}
+
 export interface FrameTryOnAsset {
   frame_id: string;
   sku: string;
@@ -99,25 +113,70 @@ export interface Point3D extends Point2D {
   z?: number;
 }
 
+/**
+ * Screen-aligned Face Tracking State
+ *
+ * Coordinate Convention:
+ * - Coordinates are in Screen Canvas Pixel Space (0,0 is top-left of canvas).
+ * - screenLeftEyeCenter: The eye appearing on the LEFT side of the screen/canvas (smaller x).
+ * - screenRightEyeCenter: The eye appearing on the RIGHT side of the screen/canvas (larger x).
+ * - interpupillaryDistancePx: Euclidean distance between screenLeftEyeCenter and screenRightEyeCenter.
+ * - rollAngleRad: Angle of the eye baseline on screen. Positive = clockwise tilt.
+ * - isMirrored: Whether horizontal mirroring is active (true for front selfie camera).
+ */
 export interface FaceTrackingState {
   detected: boolean;
   confidence: number;
+  isMirrored: boolean;
+
+  // Screen-aligned landmarks (matched to visible canvas pixels)
+  screenLeftEyeCenter: Point2D;
+  screenRightEyeCenter: Point2D;
+  screenBridgeCenter: Point2D;
+  screenLeftTemple: Point2D;
+  screenRightTemple: Point2D;
+
+  // Eye detail corners for diagnostic inspection
+  screenLeftEyeCornerInner: Point2D;
+  screenLeftEyeCornerOuter: Point2D;
+  screenRightEyeCornerInner: Point2D;
+  screenRightEyeCornerOuter: Point2D;
+
+  // Backwards compatibility aliases
   leftEyeCenter: Point2D;
   rightEyeCenter: Point2D;
   bridgeCenter: Point2D;
   leftTemple: Point2D;
   rightTemple: Point2D;
+
   interpupillaryDistancePx: number;
   faceWidthPx: number;
   rollAngleRad: number;
   smoothed: boolean;
 }
 
+/**
+ * Conformal transformation parameters mapping glasses lens anchors to detected eye centers.
+ */
 export interface RenderTransform {
-  x: number;
-  y: number;
+  // Screen center where asset lens midpoint is positioned
+  centerScreenX: number;
+  centerScreenY: number;
+
+  // 2D scale and rotation
+  scale: number;
+  rotation: number;
+
+  // Rendered dimensions
   width: number;
   height: number;
-  rotation: number;
-  scale: number;
+
+  // Projected screen coordinates of asset anchors for debug verification
+  projectedLensLeft: Point2D;
+  projectedLensRight: Point2D;
+  projectedBridge: Point2D;
+
+  // Legacy fields for backward compatibility
+  x: number;
+  y: number;
 }

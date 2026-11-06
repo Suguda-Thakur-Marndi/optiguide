@@ -15,8 +15,8 @@ class TryOnRepository:
     @staticmethod
     def seed_catalogue_if_empty(db: Session) -> None:
         """Seeds real eyewear models, categories, and brands if catalog is empty."""
-        count = db.query(CatalogProduct).count()
-        if count > 0:
+        try_on_count = db.query(CatalogProduct).filter(CatalogProduct.try_on_asset_url.isnot(None)).count()
+        if try_on_count >= 8:
             return
 
         # 1. Categories
@@ -280,8 +280,13 @@ class TryOnRepository:
         ]
 
         for p_data in products_data:
-            cat = cat_map[p_data.pop("cat_slug")]
-            brand = brand_map[p_data.pop("brand_slug")]
+            cat_slug = p_data.pop("cat_slug")
+            brand_slug = p_data.pop("brand_slug")
+            existing = db.query(CatalogProduct).filter(CatalogProduct.sku == p_data["sku"]).first()
+            if existing:
+                continue
+            cat = cat_map[cat_slug]
+            brand = brand_map[brand_slug]
             prod = CatalogProduct(
                 brand_id=brand.id,
                 category_id=cat.id,
@@ -310,7 +315,10 @@ class TryOnRepository:
         """Queries active catalogue frames with filtering and pagination."""
         TryOnRepository.seed_catalogue_if_empty(db)
 
-        query = db.query(CatalogProduct).filter(CatalogProduct.is_active == True)  # noqa: E712
+        query = db.query(CatalogProduct).filter(
+            CatalogProduct.is_active == True,  # noqa: E712
+            CatalogProduct.try_on_asset_url.isnot(None),
+        )
 
         if shape and shape.lower() != "all":
             query = query.filter(CatalogProduct.frame_shape == shape.lower())
